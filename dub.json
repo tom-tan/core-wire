@@ -1,0 +1,16 @@
+{
+	"authors": [
+		"Tomoya Tanjo"
+	],
+	"copyright": "Copyright © 2022, Tomoya Tanjo",
+	"dependencies": {
+		"requests": "~>2.0.5",
+		"dyaml": "~>0.8.6"
+	},
+	"description": "A tool/library to make CWL engines accessible to remote resources",
+	"homepage": "https://github.com/tom-tan/core-wire",
+	"license": "Apache-2.0",
+	"name": "core-wire",
+	"targetPath": "bin",
+	"targetType": "executable"
+}
