@@ -11,6 +11,7 @@ int wireMain(string[] args)
     import dyaml : Loader;
     import std;
     import wire.cwl : staging;
+    import wire.util : scheme;
 
     string destURI;
     string configFile;
@@ -43,7 +44,10 @@ EOS".outdent[0 .. $ - 1])(args[0].baseName);
     loader.name = "file://"~inpFile;
 
     auto node = loader.load;
-    auto staged = node.staging(destURI, null);
+
+    auto staged = destURI.scheme == "file"
+        ? download(node, destURI, null)
+        : upload(node, destURI, null);
 
     import wire.util : toJSON;
     writeln(staged.toJSON);

@@ -9,6 +9,39 @@ import dyaml;
 
 import wire : Wire;
 
+/**
+ * It makes a new sub directory for each parameter
+ */
+Node download(Node input, string destURI, Wire wire)
+in(destURI.scheme == "file")
+{
+    import std.file : mkdir, rmdirRecurse, tempDir;
+    import std.path : buildPath;
+    import std.uuid : randomUUID;
+
+    auto dir = buildPath(tempDir, randomUUID.toString);
+    mkdir(dir);
+
+    scope(failure)
+    {
+        // leave in error?
+        rmdirRecurse(dir);
+    }
+
+    // make tmpdir
+    // download[scheme] to tmpdir
+    // URI already exists -> copy & remove
+    // otherwise -> move
+}
+
+///
+Node upload(Node input, string destURI, Wire wire)
+{
+    // make tmpdir
+    // download[file,copy/symlink] to tmpdir
+    // copy & remove
+}
+
 ///
 Node staging(Node input, string dst, Wire wire)
 {
