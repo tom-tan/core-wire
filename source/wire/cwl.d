@@ -7,6 +7,8 @@ module wire.cwl;
 
 import dyaml;
 
+import std : exists;
+
 import wire : Wire;
 import wire.core : CoreWireConfig;
 import wire.util;
@@ -37,7 +39,10 @@ in(input.type == NodeType.mapping)
     mkdir(dir);
     scope(exit)
     {
-        rmdirRecurse(dir); // TODO: leave on error?
+        if (dir.exists)
+        {
+            rmdirRecurse(dir); // TODO: leave on error?
+        }
     }
 
     auto destPath = destURI.path;
@@ -140,10 +145,215 @@ auto stagingFile(Node file, string dst, Wire wire, DownloadConfig con)
     return ret;
 }
 
+///
+auto downloadFile(Node file, string dest, Wire wire, DownloadConfig config)
+in(file.type == NodeType.mapping)
+in("class" in file)
+in(file["class"] == "File")
+in(dest.path.exists)
+{
+    import std : absolutePath, buildPath, dirName;
+
+    if (auto con = "contents" in file)
+    {
+        import std.file : write;
+
+        // file literal
+        string bname;
+        if (auto bn_ = "basename" in file)
+        {
+            bname = bn_.as!string;
+        }
+        else
+        {
+            import std : randomUUID;
+            bname = randomUUID.toString;
+        }
+        auto destPath = buildPath(dest.path, bname);
+        destPath.write(con.as!string);
+    }
+    else
+    {
+        //
+    }
+
+    Node ret = Node(file);
+    ret.add("location", buildPath(file.startMark.name.dirName, file["location"].as!string));
+    if (auto sec = "secondaryFiles" in file)
+    {
+        import std : array, map;
+        auto sf = sec.sequence.map!(s => downloadParam(s, dest, wire, config)).array;
+        ret.add("secondaryFiles", sf);
+    }
+    return ret;
+}
+
+/**
+ * Returns: A canonicalized File Node
+ * Throws: Exception when `file` is not valid File object.
+ */
+Node toCanonicalFile(Node file)
+in(file.type == NodeType.mapping)
+in("class" in file)
+in(file["class"] == "File")
+{
+    import std : enforce;
+
+    auto ret = Node(file);
+    auto path_ = "path" in file;
+    auto loc_ = "location" in file;
+    auto pwd = file.startMark.name;
+    if (path_ is null && loc_ is null)
+    {
+        // file literal
+        auto con = enforce("contents" in file);
+        enforce(con.type == NodeType.string);
+        enforce(con.as!string.length <= 64*2^^10);
+    }
+    else if (loc_ !is null)
+    {
+        ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret.remove("contents");
+    }
+    else if (path_ !is null)
+    {
+        ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret.remove("contents");
+    }
+
+    if (auto l = "location" in ret)
+    {
+        ret.add("path", l.as!string.path);
+    }
+
+    if (auto bname = "basename" in file)
+    {
+        import std : canFind;
+
+        enforce(!bname.as!string.canFind("/"));
+    }
+    else
+    {
+        if (auto p_ = "path" in ret)
+        {
+            import std : baseName;
+            ret.add("basename", p_.as!string.baseName);
+        }
+    }
+
+    // TODO: how to do with `size` and `checksum`?
+
+    if (auto sec = "secondaryFiles" in file)
+    {
+        import std : array, map;
+
+        auto canonicalizedSec = sec
+            .sequence
+            .map!((s)
+            {
+                auto class_ = enforce("class" in s).as!string;
+                if (class_ == "File")
+                {
+                    return s.toCanonicalFile;
+                }
+                else if (class_ == "Directory")
+                {
+                    return s.toCanonicalDirectory;
+                }
+                throw new Exception("Unknown class: "~class_);
+            })
+            .array;
+        ret.add("secondaryFiles", canonicalizedSec);
+    }
+
+    return ret;
+}
+
+
 /// TODO
 auto stagingDirectory(Node dir, string dst, Wire wire, DownloadConfig con)
 {
     Node ret;
     ret.add("class", "Directory");
     return dir;
+}
+
+/**
+ * Returns: A canonicalized Directory Node
+ * Throws: Exception when `dir` is not valid Directory object.
+ */
+Node toCanonicalDirectory(Node dir)
+in(dir.type == NodeType.mapping)
+in("class" in dir)
+in(dir["class"] == "Directory")
+{
+    import std : enforce;
+
+    auto ret = Node(dir);
+    auto path_ = "path" in dir;
+    auto loc_ = "location" in dir;
+    auto pwd = dir.startMark.name;
+
+    if (path_ is null && loc_ is null)
+    {
+        // directory literal
+        auto listing = enforce("liting" in dir);
+        enforce(listing.type == NodeType.sequence);
+    }
+    else if (loc_ !is null)
+    {
+        ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret.remove("listing");
+    }
+    else if (path_ !is null)
+    {
+        ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret.remove("listing");
+    }
+
+    if (auto l = "location" in ret)
+    {
+        ret.add("path", l.as!string.path);
+    }
+
+    if (auto bname = "basename" in dir)
+    {
+        import std : canFind;
+
+        enforce(!bname.as!string.canFind("/"));
+    }
+    else
+    {
+        if (auto p_ = "path" in ret)
+        {
+            import std : baseName;
+            ret.add("basename", p_.as!string.baseName);
+        }
+    }
+
+    // listing
+    if (auto listing = "listing" in dir)
+    {
+        import std : array, map;
+
+        auto canonicalizedListing = listing
+            .sequence
+            .map!((s)
+            {
+                auto class_ = enforce("class" in s).as!string;
+                if (class_ == "File")
+                {
+                    return s.toCanonicalFile;
+                }
+                else if (class_ == "Directory")
+                {
+                    return s.toCanonicalDirectory;
+                }
+                throw new Exception("Unknown class: "~class_);
+            })
+            .array;
+        ret.add("listing", canonicalizedListing);
+    }
+
+    return ret;
 }
