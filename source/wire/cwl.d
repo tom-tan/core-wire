@@ -150,17 +150,21 @@ auto downloadFile(Node file, string dest, Wire wire, DownloadConfig config)
 in(file.type == NodeType.mapping)
 in("class" in file)
 in(file["class"] == "File")
+in(dest.scheme == "file")
 in(dest.path.exists)
 {
     import std : absolutePath, buildPath, dirName;
 
-    if (auto con = "contents" in file)
+    auto cFile = file.toCanonicalFile;
+    string loc;
+
+    if (auto con = "contents" in cFile)
     {
         import std.file : write;
 
         // file literal
         string bname;
-        if (auto bn_ = "basename" in file)
+        if (auto bn_ = "basename" in cFile)
         {
             bname = bn_.as!string;
         }
@@ -171,15 +175,19 @@ in(dest.path.exists)
         }
         auto destPath = buildPath(dest.path, bname);
         destPath.write(con.as!string);
+        loc = "file://"~destPath;
     }
     else
     {
-        //
+        auto destURI = buildPath(dest, cFile["basename"].as!string);
+        wire.downloadFile(cFile["location"].as!string, destURI);
+        loc = destURI;
     }
 
-    Node ret = Node(file);
-    ret.add("location", buildPath(file.startMark.name.dirName, file["location"].as!string));
-    if (auto sec = "secondaryFiles" in file)
+    Node ret = Node(cFile);
+    ret.add("location", loc);
+    ret.add("path", loc.path);
+    if (auto sec = "secondaryFiles" in cFile)
     {
         import std : array, map;
         auto sf = sec.sequence.map!(s => downloadParam(s, dest, wire, config)).array;
