@@ -25,7 +25,7 @@ struct DownloadConfig
 }
 
 /**
- * It makes a new sub directory for each parameter
+ * It makes a new sub directory for each parameter 
  */
 Node download(Node input, string destURI, Wire wire, DownloadConfig con)
 in(destURI.scheme == "file")
