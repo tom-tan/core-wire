@@ -59,9 +59,9 @@ class FileCoreWire : CoreWire
     }
 
     ///
-    override void uploadFile(string src, string dst) const
+    override void uploadDirectory(string src, string dst) const
     {
-        downloadFile(src, dst);
+        downloadDirectory(src, dst);
     }
 
     /// Returns: true if this core wire can make directories on remote sites

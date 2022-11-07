@@ -38,10 +38,10 @@ interface CoreWire
     out(;dst.path.exists && dst.path.isDir);
 
     ///
-    void uploadFile(string src, string dst) const
+    void uploadDirectory(string src, string dst) const
     in(src.scheme == "file")
     in(schemes.canFind(dst.scheme))
-    in(src.path.exists && src.path.isFile);
+    in(src.path.exists && src.path.isDir);
 
     ///
     final bool canSupport(string scheme) const

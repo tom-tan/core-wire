@@ -82,7 +82,7 @@ class Wire
     }
 
     ///
-    void uploadFile(string src, string dst) const
+    void uploadDirectory(string src, string dst) const
     in(src.scheme == "file")
     in(src.path.exists && src.path.isFile)
     {
@@ -94,7 +94,7 @@ class Wire
             dstScheme in uploader,
             format!"Core wire for scheme `%s` not found"(dstScheme),
         );
-        ul.uploadFile(src, dst);
+        ul.uploadDirectory(src, dst);
     }
 private:
     CoreWire[string] downloader, uploader;
