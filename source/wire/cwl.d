@@ -184,24 +184,26 @@ in(dest.path.exists)
     }
 
     Node ret = Node(cFile);
-    ret.add("location", loc);
-    ret.add("path", loc.path);
+    ret["location"] = loc;
+    ret["path"] = loc.path;
     if (auto sec = "secondaryFiles" in cFile)
     {
         import std : array, map;
         auto sf = sec.sequence.map!(s => downloadParam(s, dest, wire, config)).array;
-        ret.add("secondaryFiles", sf);
+        ret["secondaryFiles"] = sf;
     }
     return ret;
 }
 
 unittest
 {
+    // file to file
     // File w/o secondaryFiles
 }
 
 unittest
 {
+    // file to file
     // File w/ secondaryFiles
 }
 
@@ -231,13 +233,13 @@ in(file["class"] == "File")
     }
     else if (loc_ !is null)
     {
-        ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret["location"] = loc_.as!string.absoluteURI(pwd);
         ret.remove("path");
         ret.remove("contents");
     }
     else if (path_ !is null)
     {
-        ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret["location"] = path_.as!string.absoluteURI(pwd);
         ret.remove("path");
         ret.remove("contents");
     }
@@ -251,7 +253,7 @@ in(file["class"] == "File")
     else if (auto p_ = "location" in ret)
     {
         import std : baseName;
-        ret.add("basename", p_.as!string.path.baseName);
+        ret["basename"] = p_.as!string.path.baseName;
     }
 
     // TODO: how to do with `size` and `checksum`?
@@ -276,10 +278,40 @@ in(file["class"] == "File")
                 throw new Exception("Unknown class: "~class_);
             })
             .array;
-        ret.add("secondaryFiles", canonicalizedSec);
+        ret["secondaryFiles"] = canonicalizedSec;
     }
 
     return ret;
+}
+
+/// File object that indicates an actual file
+unittest
+{
+    import dyaml : Loader;
+
+    enum lit = q"EOS
+    class: File
+    location: /foo/bar/buzz.txt
+EOS";
+
+    auto cFile = Loader.fromString(lit).load.toCanonicalFile;
+
+    assert("class" in cFile);
+    assert(cFile["class"] == "File");
+    assert("location" in cFile);
+    assert(cFile["location"] == "file:///foo/bar/buzz.txt");
+    assert("basename" in cFile);
+    assert(cFile["basename"] == "buzz.txt");
+}
+
+/// File literal
+unittest
+{
+}
+
+/// File object w/ secondaryFiles
+unittest
+{
 }
 
 ///
@@ -326,23 +358,23 @@ in(dest.path.exists)
     }
 
     Node ret = Node(cDir);
-    ret.add("location", loc);
-    ret.add("path", loc.path);
+    ret["location"] = loc;
+    ret["path"] = loc.path;
     if (listing.type != NodeType.null_)
     {
-        ret.add("listing", listing);
+        ret["listing"] = listing;
     }
     return ret;
 }
 
+/// Directory w/o `listing` (file to file)
 unittest
 {
-    // Directory w/o listing
 }
 
+/// Directory w/ `listing` (file to file)
 unittest
 {
-    // Directory w listing
 }
 
 /**
@@ -371,13 +403,13 @@ in(dir["class"] == "Directory")
     }
     else if (loc_ !is null)
     {
-        ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret["location"] = loc_.as!string.absoluteURI(pwd);
         ret.remove("path");
         ret.remove("listing");
     }
     else if (path_ !is null)
     {
-        ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret["location"] = path_.as!string.absoluteURI(pwd);
         ret.remove("path");
         ret.remove("listing");
     }
@@ -391,10 +423,9 @@ in(dir["class"] == "Directory")
     else if (auto p_ = "location" in ret)
     {
         import std : baseName;
-        ret.add("basename", p_.as!string.path.baseName);
+        ret["basename"] = p_.as!string.path.baseName;
     }
 
-    // listing
     if (auto listing = "listing" in dir)
     {
         import std : array, map;
@@ -415,8 +446,37 @@ in(dir["class"] == "Directory")
                 throw new Exception("Unknown class: "~class_);
             })
             .array;
-        ret.add("listing", canonicalizedListing);
+        ret["listing"] = canonicalizedListing;
     }
-
     return ret;
+}
+
+/// Directory object that indicates an actual directory
+unittest
+{
+    import dyaml : Loader;
+
+    enum lit = q"EOS
+    class: Directory
+    location: /foo/bar/buzz
+EOS";
+
+    auto cDir = Loader.fromString(lit).load.toCanonicalDirectory;
+
+    assert("class" in cDir);
+    assert(cDir["class"] == "Directory");
+    assert("location" in cDir);
+    assert(cDir["location"] == "file:///foo/bar/buzz");
+    assert("basename" in cDir);
+    assert(cDir["basename"] == "buzz");
+}
+
+/// Directory literal
+unittest
+{
+}
+
+/// Directory object w/ `listing`
+unittest
+{
 }
