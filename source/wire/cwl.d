@@ -302,11 +302,29 @@ EOS";
     assert(cFile["location"] == "file:///foo/bar/buzz.txt");
     assert("basename" in cFile);
     assert(cFile["basename"] == "buzz.txt");
+    assert("contents" !in cFile);
 }
 
 /// File literal
 unittest
 {
+    import dyaml : Loader;
+
+    enum lit = q"EOS
+    class: File
+    basename: created.txt
+    contents: |
+      foo
+      bar
+EOS";
+
+    auto cFile = Loader.fromString(lit).load.toCanonicalFile;
+    assert("class" in cFile);
+    assert(cFile["class"] == "File");
+    assert("basename" in cFile);
+    assert(cFile["basename"] == "created.txt");
+    assert("location" !in cFile);
+    assert("contents" in cFile);
 }
 
 /// File object w/ secondaryFiles
