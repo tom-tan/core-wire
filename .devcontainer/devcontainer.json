@@ -12,5 +12,6 @@
       "/dlang/dc/import"
     ]
   },
+  "postStartCommand": "git config --add safe.directory ${containerWorkspaceFolder}",
   "remoteUser": "vscode"
 }
