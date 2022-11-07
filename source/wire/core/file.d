@@ -40,12 +40,31 @@ class FileCoreWire : CoreWire
     }
 
     ///
+    override void downloadDirectory(string src, string dst) const
+    {
+        import wire.util : path;
+
+        auto srcPath = src.path;
+        auto dstPath = dst.path;
+        if (config.allowSymLink)
+        {
+            import std.file : symlink;
+            symlink(srcPath, dstPath);
+        }
+        else
+        {
+            import std.file : copy;
+            copy(srcPath, dstPath); // TODO: copy can accept directory? -> no
+        }
+    }
+
+    ///
     override void uploadFile(string src, string dst) const
     {
         downloadFile(src, dst);
     }
 
-    ///
+    /// Returns: true if this core wire can make directories on remote sites
     override bool canMkdir() const
     {
         return true;

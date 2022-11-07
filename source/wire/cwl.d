@@ -117,8 +117,8 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con)
             auto c = class_.as!string;
             switch(c)
             {
-            case "File": return inp.stagingFile(dest, wire, con);
-            case "Directory": return inp.stagingDirectory(dest, wire, con);
+            case "File": return inp.downloadFile(dest, wire, con);
+            case "Directory": return inp.downloadDirectory(dest, wire, con);
             default:
                 throw new WireException(format!"Unknown class: `%s`"(c));
             }
@@ -127,22 +127,6 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con)
     default:
         throw new WireException(format!"Unsupported node type: `%s`"(inp.type));
     }
-}
-
-/// TODO
-auto stagingFile(Node file, string dst, Wire wire, DownloadConfig con)
-{
-    import std : absolutePath, buildPath, dirName;
-
-    Node ret = Node(file);
-    ret.add("location", buildPath(file.startMark.name.dirName, file["location"].as!string));
-    if (auto sec = "secondaryFiles" in file)
-    {
-        import std : array, map;
-        auto sf = sec.sequence.map!(s => downloadParam(s, dst, wire, con)).array;
-        ret.add("secondaryFiles", sf);
-    }
-    return ret;
 }
 
 ///
@@ -273,13 +257,57 @@ in(file["class"] == "File")
     return ret;
 }
 
-
-/// TODO
-auto stagingDirectory(Node dir, string dst, Wire wire, DownloadConfig con)
+///
+auto downloadDirectory(Node dir, string dest, Wire wire, DownloadConfig config)
+in(dir.type == NodeType.mapping)
+in("class" in dir)
+in(dir["class"] == "Directory")
+in(dest.scheme == "file")
+in(dest.path.exists)
 {
-    Node ret;
-    ret.add("class", "Directory");
-    return dir;
+    import std : absolutePath, array, buildPath, dirName, map, mkdir;
+
+    auto cDir = dir.toCanonicalFile;
+    string loc;
+    auto listing = Node(YAMLNull());
+
+    if (auto listing_ = "listing" in cDir)
+    {
+        import std.file : mkdir, write;
+
+        // directory literal
+        string bname;
+        if (auto bn_ = "basename" in cDir)
+        {
+            bname = bn_.as!string;
+        }
+        else
+        {
+            import std : randomUUID;
+            bname = randomUUID.toString;
+        }
+        auto destPath = buildPath(dest.path, bname);
+        mkdir(destPath);
+        loc = "file://"~destPath;
+
+        listing = Node(listing_.sequence.map!(l => downloadParam(l, loc, wire, config)).array);
+    }
+    else
+    {
+        auto destURI = buildPath(dest, cDir["basename"].as!string);
+        wire.downloadDirectory(cDir["location"].as!string, destURI);
+        loc = destURI;
+        // TODO: `listing` field in the case of CWL v1.0
+    }
+
+    Node ret = Node(cDir);
+    ret.add("location", loc);
+    ret.add("path", loc.path);
+    if (listing.type != NodeType.null_)
+    {
+        ret.add("listing", listing);
+    }
+    return ret;
 }
 
 /**
