@@ -197,8 +197,10 @@ in(dest.path.exists)
 }
 
 /**
- * Returns: A canonicalized File Node
- * Throws: Exception when `file` is not valid File object.
+ * Returns: A canonicalized File object. That is,
+ *   - File object in which `contents` and `basename` are available but `path` and `location` are not available
+ *   - File object in which `location` and `basename` is available but `path` and `contents` are not available
+ * Throws: Exception when `file` is not a valid File object.
  */
 Node toCanonicalFile(Node file)
 in(file.type == NodeType.mapping)
@@ -221,17 +223,14 @@ in(file["class"] == "File")
     else if (loc_ !is null)
     {
         ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret.remove("path");
         ret.remove("contents");
     }
     else if (path_ !is null)
     {
         ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret.remove("path");
         ret.remove("contents");
-    }
-
-    if (auto l = "location" in ret)
-    {
-        ret.add("path", l.as!string.path);
     }
 
     if (auto bname = "basename" in file)
@@ -240,13 +239,10 @@ in(file["class"] == "File")
 
         enforce(!bname.as!string.canFind("/"));
     }
-    else
+    else if (auto p_ = "location" in ret)
     {
-        if (auto p_ = "path" in ret)
-        {
-            import std : baseName;
-            ret.add("basename", p_.as!string.baseName);
-        }
+        import std : baseName;
+        ret.add("basename", p_.as!string.path.baseName);
     }
 
     // TODO: how to do with `size` and `checksum`?
@@ -287,7 +283,9 @@ auto stagingDirectory(Node dir, string dst, Wire wire, DownloadConfig con)
 }
 
 /**
- * Returns: A canonicalized Directory Node
+ * Returns: A canonicalized Directory Node. That is,
+ *   - Directory object in which `listing` and `basename` are available but `path` and `location` are not available
+ *   - Directory object in which `location` and `basename` are available but `path` and `listing` are not available
  * Throws: Exception when `dir` is not valid Directory object.
  */
 Node toCanonicalDirectory(Node dir)
@@ -305,23 +303,20 @@ in(dir["class"] == "Directory")
     if (path_ is null && loc_ is null)
     {
         // directory literal
-        auto listing = enforce("liting" in dir);
+        auto listing = enforce("listing" in dir);
         enforce(listing.type == NodeType.sequence);
     }
     else if (loc_ !is null)
     {
         ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret.remove("path");
         ret.remove("listing");
     }
     else if (path_ !is null)
     {
         ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret.remove("path");
         ret.remove("listing");
-    }
-
-    if (auto l = "location" in ret)
-    {
-        ret.add("path", l.as!string.path);
     }
 
     if (auto bname = "basename" in dir)
@@ -330,13 +325,10 @@ in(dir["class"] == "Directory")
 
         enforce(!bname.as!string.canFind("/"));
     }
-    else
+    else if (auto p_ = "location" in ret)
     {
-        if (auto p_ = "path" in ret)
-        {
-            import std : baseName;
-            ret.add("basename", p_.as!string.baseName);
-        }
+        import std : baseName;
+        ret.add("basename", p_.as!string.path.baseName);
     }
 
     // listing
