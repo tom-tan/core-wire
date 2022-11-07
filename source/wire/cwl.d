@@ -13,15 +13,23 @@ import wire : Wire;
 import wire.core : CoreWireConfig;
 import wire.util;
 
+///
+enum LeaveTmpdir
+{
+    always,
+    onErrors,
+    never,
+}
+
 struct DownloadConfig
 {
-    /// always, onError, or never
-    int removeTmpdir;
-    /// allow to make random directory for each parameter
+    ///
+    LeaveTmpdir leaveTmpDir;
+    /// make random directory for each parameter or not
     bool makeRandomDir;
 
     /// 
-    CoreWireConfig[string] config;
+    CoreWireConfig[string] config; // option to overwrite given options (is it needed?)
 }
 
 /**
@@ -37,11 +45,18 @@ in(input.type == NodeType.mapping)
 
     auto dir = buildPath(tempDir, randomUUID.toString);
     mkdir(dir);
-    scope(exit)
+    scope(success)
     {
-        if (dir.exists)
+        if (dir.exists && con.leaveTmpDir == LeaveTmpdir.never)
         {
-            rmdirRecurse(dir); // TODO: leave on error?
+            rmdirRecurse(dir);
+        }
+    }
+    scope(failure)
+    {
+        if (dir.exists && con.leaveTmpDir != LeaveTmpdir.always)
+        {
+            rmdirRecurse(dir);
         }
     }
 
@@ -180,6 +195,16 @@ in(dest.path.exists)
     return ret;
 }
 
+unittest
+{
+    // File w/o secondaryFiles
+}
+
+unittest
+{
+    // File w/ secondaryFiles
+}
+
 /**
  * Returns: A canonicalized File object. That is,
  *   - File object in which `contents` and `basename` are available but `path` and `location` are not available
@@ -308,6 +333,16 @@ in(dest.path.exists)
         ret.add("listing", listing);
     }
     return ret;
+}
+
+unittest
+{
+    // Directory w/o listing
+}
+
+unittest
+{
+    // Directory w listing
 }
 
 /**
