@@ -43,11 +43,6 @@ interface CoreWire
     in(schemes.canFind(dst.scheme))
     in(src.path.exists && src.path.isDir);
 
-    // uploadDir();
-
-    // downloadFile;
-    // downloadDir;
-
     ///
     final bool canSupport(string scheme) const @safe
     {
