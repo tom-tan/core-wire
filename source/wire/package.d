@@ -15,14 +15,14 @@ import wire.util : path, scheme;
 class Wire
 {
     ///
-    void addCoreWire(string scheme, CoreWire coreWire, CoreWireType type = CoreWireType.both)
+    void addCoreWire(string scheme, CoreWire coreWire, CoreWireType type = CoreWireType.both) @safe
     {
         import std.exception : enforce;
         import std.format : format;
 
         enforce!WireException(
             coreWire.canSupport(scheme),
-            format!"`%s` is not supported by `%s`"(scheme, coreWire),
+            () @trusted { return format!"`%s` is not supported by `%s`"(scheme, coreWire); }(),
         );
 
         auto t = coreWire.type & type;
@@ -39,7 +39,7 @@ class Wire
     }
 
     ///
-    void removeCoreWire(string scheme, CoreWireType type = CoreWireType.both)
+    void removeCoreWire(string scheme, CoreWireType type = CoreWireType.both) @safe
     {
         if (type & CoreWireType.up)
         {
@@ -52,7 +52,7 @@ class Wire
     }
 
     ///
-    void downloadFile(string src, string dst) const
+    void downloadFile(string src, string dst) const @safe
     in(dst.scheme == "file")
     out(;dst.path.exists && dst.path.isFile)
     {
@@ -68,7 +68,7 @@ class Wire
     }
 
     ///
-    void uploadFile(string src, string dst) const
+    void uploadFile(string src, string dst) const @safe
     in(src.scheme == "file")
     in(src.path.exists && src.path.isFile)
     {

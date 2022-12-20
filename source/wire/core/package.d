@@ -24,20 +24,25 @@ enum CoreWireType : ubyte
 interface CoreWire
 {
     ///
-    void downloadFile(string src, string dst) const
+    void downloadFile(string src, string dst) const @safe
     in(dst.scheme == "file")
     in(schemes.canFind(src.scheme))
     in(dst.path.dirName.exists && dst.path.dirName.isDir)
     out(;dst.path.exists && dst.path.isFile);
 
     ///
-    void uploadFile(string src, string dst) const
+    void uploadFile(string src, string dst) const @safe
     in(src.scheme == "file")
     in(schemes.canFind(dst.scheme))
     in(src.path.exists && src.path.isFile);
 
+    // uploadDir();
+
+    // downloadFile;
+    // downloadDir;
+
     ///
-    final bool canSupport(string scheme) const
+    final bool canSupport(string scheme) const @safe
     {
         return schemes.canFind(scheme);
     }
@@ -45,13 +50,13 @@ interface CoreWire
     /**
      * Returns: true if this core wire can make directories to the remote resources
      */
-    bool canMkdir() const;
+    bool canMkdir() const @safe;
 
     ///
-    CoreWireType type() const;
+    CoreWireType type() const @safe;
 
 protected:
-    string[] schemes() const;
+    string[] schemes() const @safe;
 }
 
 ///

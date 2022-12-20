@@ -7,7 +7,7 @@ module wire.cwl;
 
 import dyaml;
 
-import std : exists;
+import std : exists, isDir;
 
 import wire : Wire;
 import wire.core : CoreWireConfig;
@@ -27,7 +27,7 @@ struct DownloadConfig
 /**
  * It makes a new sub directory for each parameter 
  */
-Node download(Node input, string destURI, Wire wire, DownloadConfig con)
+Node download(Node input, string destURI, Wire wire, DownloadConfig con) @safe
 in(destURI.scheme == "file")
 in(input.type == NodeType.mapping)
 {
@@ -72,10 +72,13 @@ in(input.type == NodeType.mapping)
 
     if (destPath.exists)
     {
-        foreach(string name; dirEntries(dir, SpanMode.shallow))
-        {
-            rename(name, buildPath(destPath, name.baseName));
-        }
+        // See_Also: https://github.com/dlang/phobos/blob/67d4521c2c53b4e8c4a5213860c49caf9396bde2/std/file.d#L4468
+        () @trusted {
+            foreach(string name; dirEntries(dir, SpanMode.shallow))
+            {
+                rename(name, buildPath(destPath, name.baseName));
+            }
+        }();
         rmdirRecurse(dir);
     }
     else
@@ -95,7 +98,7 @@ Node upload(Node input, string destURI, Wire wire)
 }
 
 ///
-Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con)
+Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con) @safe
 {
     import std : format;
     import wire.exception : WireException;
@@ -117,8 +120,8 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con)
             auto c = class_.as!string;
             switch(c)
             {
-            case "File": return inp.stagingFile(dest, wire, con);
-            case "Directory": return inp.stagingDirectory(dest, wire, con);
+            case "File": return inp.downloadFile(dest, wire, con);
+            case "Directory": return inp.downloadDirectory(dest, wire, con);
             default:
                 throw new WireException(format!"Unknown class: `%s`"(c));
             }
@@ -129,29 +132,14 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con)
     }
 }
 
-/// TODO
-auto stagingFile(Node file, string dst, Wire wire, DownloadConfig con)
-{
-    import std : absolutePath, buildPath, dirName;
-
-    Node ret = Node(file);
-    ret.add("location", buildPath(file.startMark.name.dirName, file["location"].as!string));
-    if (auto sec = "secondaryFiles" in file)
-    {
-        import std : array, map;
-        auto sf = sec.sequence.map!(s => downloadParam(s, dst, wire, con)).array;
-        ret.add("secondaryFiles", sf);
-    }
-    return ret;
-}
-
 ///
-auto downloadFile(Node file, string dest, Wire wire, DownloadConfig config)
+auto downloadFile(Node file, string dest, Wire wire, DownloadConfig config) @safe
 in(file.type == NodeType.mapping)
 in("class" in file)
 in(file["class"] == "File")
 in(dest.scheme == "file")
 in(dest.path.exists)
+in(dest.path.isDir)
 {
     import std : absolutePath, buildPath, dirName;
 
@@ -196,11 +184,31 @@ in(dest.path.exists)
     return ret;
 }
 
+///
+auto downloadDirectory(Node dir, string dest, Wire wire, DownloadConfig config) @safe
+in(dir.type == NodeType.mapping)
+in("class" in dir)
+in(dir["class"] == "Directory")
+in(dest.scheme == "file")
+in(dest.path.exists)
+in(dest.path.isDir)
+{
+    return Node(dir);
+}
+
 /**
- * Returns: A canonicalized File Node
- * Throws: Exception when `file` is not valid File object.
+ * It converts a File node to a canonicalized File node.
+ *
+ * A canonicalized File node is:
+ * - A File object that consists of `class`, `location`, `basename`, and `secondaryFiles` if available, or
+ * - A File literal that consists of `class`, `contents`, and `secondaryFiles` if available.
+ * This function leaves `format`, `checksum`, `size` and extension fields as is.
+ * Any other fields are not available.
+ *
+ * Returns: A canonicalized File node. 
+ * Throws: Exception when `file` is not a valid File object.
  */
-Node toCanonicalFile(Node file)
+Node toCanonicalFile(Node file) @safe
 in(file.type == NodeType.mapping)
 in("class" in file)
 in(file["class"] == "File")
@@ -220,21 +228,16 @@ in(file["class"] == "File")
     }
     else if (loc_ !is null)
     {
-        ret.add("location", loc_.as!string.absoluteURI(pwd));
-        ret.remove("contents");
+        ret["location"] = loc_.as!string.absoluteURI(pwd);
+        ret.removeAt("contents"); // TODO
     }
     else if (path_ !is null)
     {
-        ret.add("location", path_.as!string.absoluteURI(pwd));
-        ret.remove("contents");
+        ret["location"] = path_.as!string.absoluteURI(pwd);
+        ret.removeAt("contents"); // TODO
     }
 
-    if (auto l = "location" in ret)
-    {
-        ret.add("path", l.as!string.path);
-    }
-
-    if (auto bname = "basename" in file)
+    if (auto bname = "basename" in ret)
     {
         import std : canFind;
 
@@ -242,18 +245,24 @@ in(file["class"] == "File")
     }
     else
     {
-        if (auto p_ = "path" in ret)
+        if (auto l_ = "location" in ret)
         {
             import std : baseName;
-            ret.add("basename", p_.as!string.baseName);
+            ret["basename"] = l_.as!string.path.baseName;
         }
     }
 
+    ret.removeAt("path");
+    ret.removeAt("dirname");
+    ret.removeAt("nameroot");
+    ret.removeAt("nameext");
+
     // TODO: how to do with `size` and `checksum`?
+    // leave `format` as is
 
     if (auto sec = "secondaryFiles" in file)
     {
-        import std : array, map;
+        import std : array, empty, map;
 
         auto canonicalizedSec = sec
             .sequence
@@ -271,26 +280,56 @@ in(file["class"] == "File")
                 throw new Exception("Unknown class: "~class_);
             })
             .array;
-        ret.add("secondaryFiles", canonicalizedSec);
+
+        if (canonicalizedSec.empty)
+        {
+            ret.removeAt("secondaryFiles");
+        }
+        else
+        {
+            ret["secondaryFiles"] = canonicalizedSec;
+        }
     }
 
     return ret;
 }
 
-
-/// TODO
-auto stagingDirectory(Node dir, string dst, Wire wire, DownloadConfig con)
+///
+@safe unittest
 {
-    Node ret;
-    ret.add("class", "Directory");
-    return dir;
+    enum origYAML = q"EOS
+        class: File
+        path: /foo/bar/buzz.txt
+EOS";
+
+    auto origFile = Loader.fromString(origYAML).load.toCanonicalFile;
+    assert(origFile.length == 3);
+    assert(origFile["class"] == "File");
+    assert(origFile["location"] == "file:///foo/bar/buzz.txt");
+    assert(origFile["basename"] == "buzz.txt");
+}
+
+///
+@safe unittest
+{
+    enum origYAML = q"EOS
+        class: File
+        contents: |
+            foo
+            bar
+EOS";
+
+    auto origFile = Loader.fromString(origYAML).load.toCanonicalFile;
+    assert(origFile.length == 2);
+    assert(origFile["class"] == "File");
+    assert(origFile["contents"] == "foo\nbar\n");
 }
 
 /**
  * Returns: A canonicalized Directory Node
  * Throws: Exception when `dir` is not valid Directory object.
  */
-Node toCanonicalDirectory(Node dir)
+Node toCanonicalDirectory(Node dir) @safe
 in(dir.type == NodeType.mapping)
 in("class" in dir)
 in(dir["class"] == "Directory")

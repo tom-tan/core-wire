@@ -23,6 +23,7 @@ auto isAbsoluteURI(string uriOrPath) @nogc nothrow pure @safe
  * Returns: an absolute URI with scheme
  * Params: 
  *   pathOrURI = a string that is an absolute or relative local path, or a URI
+ *   base  = a base directory
  */
 auto absoluteURI(string pathOrURI, string base = getcwd()) nothrow pure @safe
 {

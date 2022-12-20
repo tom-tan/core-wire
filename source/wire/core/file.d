@@ -13,7 +13,7 @@ class FileCoreWire : CoreWire
     /**
      * Bugs: It does not capture the case of using symlinks when download but not using symlinks when upload
      */
-    this(CoreWireConfig config)
+    this(CoreWireConfig config) @safe
     {
         import std.exception : enforce;
 
@@ -21,7 +21,7 @@ class FileCoreWire : CoreWire
     }
 
     ///
-    override void downloadFile(string src, string dst) const
+    override void downloadFile(string src, string dst) const @safe
     {
         import wire.util : path;
 
@@ -40,19 +40,19 @@ class FileCoreWire : CoreWire
     }
 
     ///
-    override void uploadFile(string src, string dst) const
+    override void uploadFile(string src, string dst) const @safe
     {
         downloadFile(src, dst);
     }
 
     ///
-    override bool canMkdir() const
+    override bool canMkdir() const @safe
     {
         return true;
     }
 
     ///
-    override CoreWireType type() const
+    override CoreWireType type() const @safe
     {
         return CoreWireType.both;
     }
