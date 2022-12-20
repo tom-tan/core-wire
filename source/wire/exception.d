@@ -12,5 +12,6 @@ class WireException : Exception
     mixin basicExceptionCtors;
 }
 
-/// input file not found
-/// network error
+// input file not found (same as network error?)
+// network error when download/upload
+// invalid File/Directory object (e.g., missing fields, type errors)

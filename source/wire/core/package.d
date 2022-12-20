@@ -31,10 +31,17 @@ interface CoreWire
     out(;dst.path.exists && dst.path.isFile);
 
     ///
-    void uploadFile(string src, string dst) const @safe
+    void downloadDirectory(string src, string dst) const @safe
+    in(dst.scheme == "file")
+    in(schemes.canFind(src.scheme))
+    in(dst.path.dirName.exists && dst.path.dirName.isDir)
+    out(;dst.path.exists && dst.path.isDir);
+
+    ///
+    void uploadDirectory(string src, string dst) const @safe
     in(src.scheme == "file")
     in(schemes.canFind(dst.scheme))
-    in(src.path.exists && src.path.isFile);
+    in(src.path.exists && src.path.isDir);
 
     // uploadDir();
 

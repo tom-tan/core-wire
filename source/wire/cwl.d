@@ -13,15 +13,23 @@ import wire : Wire;
 import wire.core : CoreWireConfig;
 import wire.util;
 
+///
+enum LeaveTmpdir
+{
+    always,
+    onErrors,
+    never,
+}
+
 struct DownloadConfig
 {
-    /// always, onError, or never
-    int removeTmpdir;
-    /// allow to make random directory for each parameter
+    ///
+    LeaveTmpdir leaveTmpDir;
+    /// make random directory for each parameter or not
     bool makeRandomDir;
 
     /// 
-    CoreWireConfig[string] config;
+    CoreWireConfig[string] config; // option to overwrite given options (is it needed?)
 }
 
 /**
@@ -37,11 +45,18 @@ in(input.type == NodeType.mapping)
 
     auto dir = buildPath(tempDir, randomUUID.toString);
     mkdir(dir);
-    scope(exit)
+    scope(success)
     {
-        if (dir.exists)
+        if (dir.exists && con.leaveTmpDir == LeaveTmpdir.never)
         {
-            rmdirRecurse(dir); // TODO: leave on error?
+            rmdirRecurse(dir);
+        }
+    }
+    scope(failure)
+    {
+        if (dir.exists && con.leaveTmpDir != LeaveTmpdir.always)
+        {
+            rmdirRecurse(dir);
         }
     }
 
@@ -173,13 +188,13 @@ in(dest.path.isDir)
     }
 
     Node ret = Node(cFile);
-    ret.add("location", loc);
-    ret.add("path", loc.path);
+    ret["location"] = loc;
+    ret["path"] = loc.path;
     if (auto sec = "secondaryFiles" in cFile)
     {
         import std : array, map;
         auto sf = sec.sequence.map!(s => downloadParam(s, dest, wire, config)).array;
-        ret.add("secondaryFiles", sf);
+        ret["secondaryFiles"] = sf;
     }
     return ret;
 }
@@ -243,7 +258,7 @@ in(file["class"] == "File")
 
         enforce(!bname.as!string.canFind("/"));
     }
-    else
+    else if (auto p_ = "location" in ret)
     {
         if (auto l_ = "location" in ret)
         {
@@ -326,7 +341,9 @@ EOS";
 }
 
 /**
- * Returns: A canonicalized Directory Node
+ * Returns: A canonicalized Directory Node. That is,
+ *   - Directory object in which `listing` and `basename` are available but `path` and `location` are not available
+ *   - Directory object in which `location` and `basename` are available but `path` and `listing` are not available
  * Throws: Exception when `dir` is not valid Directory object.
  */
 Node toCanonicalDirectory(Node dir) @safe
@@ -344,23 +361,20 @@ in(dir["class"] == "Directory")
     if (path_ is null && loc_ is null)
     {
         // directory literal
-        auto listing = enforce("liting" in dir);
+        auto listing = enforce("listing" in dir);
         enforce(listing.type == NodeType.sequence);
     }
     else if (loc_ !is null)
     {
-        ret.add("location", loc_.as!string.absoluteURI(pwd));
+        ret["location"] = loc_.as!string.absoluteURI(pwd);
+        ret.remove("path");
         ret.remove("listing");
     }
     else if (path_ !is null)
     {
-        ret.add("location", path_.as!string.absoluteURI(pwd));
+        ret["location"] = path_.as!string.absoluteURI(pwd);
+        ret.remove("path");
         ret.remove("listing");
-    }
-
-    if (auto l = "location" in ret)
-    {
-        ret.add("path", l.as!string.path);
     }
 
     if (auto bname = "basename" in dir)
@@ -369,16 +383,12 @@ in(dir["class"] == "Directory")
 
         enforce(!bname.as!string.canFind("/"));
     }
-    else
+    else if (auto p_ = "location" in ret)
     {
-        if (auto p_ = "path" in ret)
-        {
-            import std : baseName;
-            ret.add("basename", p_.as!string.baseName);
-        }
+        import std : baseName;
+        ret["basename"] = p_.as!string.path.baseName;
     }
 
-    // listing
     if (auto listing = "listing" in dir)
     {
         import std : array, map;
@@ -399,8 +409,7 @@ in(dir["class"] == "Directory")
                 throw new Exception("Unknown class: "~class_);
             })
             .array;
-        ret.add("listing", canonicalizedListing);
+        ret["listing"] = canonicalizedListing;
     }
-
     return ret;
 }

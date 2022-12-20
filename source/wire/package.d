@@ -68,7 +68,21 @@ class Wire
     }
 
     ///
-    void uploadFile(string src, string dst) const @safe
+    void downloadDirectory(string src, string dst) const
+    {
+        import std.exception : enforce;
+        import std.format : format;
+
+        auto srcScheme = src.scheme;
+        auto dl = enforce!WireException(
+            srcScheme in downloader,
+            format!"Core wire for scheme `%s` not found"(srcScheme),
+        );
+        dl.downloadDirectory(src, dst);
+    }
+
+    ///
+    void uploadDirectory(string src, string dst) const
     in(src.scheme == "file")
     in(src.path.exists && src.path.isFile)
     {
@@ -80,7 +94,7 @@ class Wire
             dstScheme in uploader,
             format!"Core wire for scheme `%s` not found"(dstScheme),
         );
-        ul.downloadFile(src, dst);
+        ul.uploadDirectory(src, dst);
     }
 private:
     CoreWire[string] downloader, uploader;
