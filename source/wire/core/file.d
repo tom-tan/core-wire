@@ -59,7 +59,7 @@ class FileCoreWire : CoreWire
     }
 
     ///
-    override void uploadDirectory(string src, string dst) const
+    override void uploadDirectory(string src, string dst) const @safe
     {
         downloadDirectory(src, dst);
     }
