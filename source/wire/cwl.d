@@ -226,7 +226,7 @@ in(dest.path.isDir)
 Node toCanonicalFile(Node file) @safe
 in(file.type == NodeType.mapping)
 in("class" in file)
-in(file["class"] == "File")
+in(file["class"] == "File", "`File` is expected but actual: "~file["class"].as!string)
 {
     import std : enforce;
 
@@ -239,6 +239,8 @@ in(file["class"] == "File")
         // file literal
         auto con = enforce("contents" in file);
         enforce(con.type == NodeType.string);
+        // TODO: If `contents`` is set as a result of an Javascript expression, an `entry` in `InitialWorkDirRequirement`,
+        // or read in from `cwl.output.json`, there is no specified upper limit on the size of `contents`.
         enforce(con.as!string.length <= 64*2^^10);
     }
     else if (loc_ !is null)
@@ -271,9 +273,6 @@ in(file["class"] == "File")
     ret.removeAt("dirname");
     ret.removeAt("nameroot");
     ret.removeAt("nameext");
-
-    // TODO: how to do with `size` and `checksum`?
-    // leave `format` as is
 
     if (auto sec = "secondaryFiles" in file)
     {
@@ -315,13 +314,15 @@ in(file["class"] == "File")
     enum origYAML = q"EOS
         class: File
         path: /foo/bar/buzz.txt
+        ext:field: "This is an extension field."
 EOS";
 
     auto origFile = Loader.fromString(origYAML).load.toCanonicalFile;
-    assert(origFile.length == 3);
+    assert(origFile.length == 4);
     assert(origFile["class"] == "File");
     assert(origFile["location"] == "file:///foo/bar/buzz.txt");
     assert(origFile["basename"] == "buzz.txt");
+    assert(origFile["ext:field"] == "This is an extension field.");
 }
 
 ///
@@ -342,14 +343,14 @@ EOS";
 
 /**
  * Returns: A canonicalized Directory Node. That is,
- *   - Directory object in which `listing` and `basename` are available but `path` and `location` are not available
+ *   - Directory object in which `listing` and `basename` are available but `path` and `location` are not available, or
  *   - Directory object in which `location` and `basename` are available but `path` and `listing` are not available
  * Throws: Exception when `dir` is not valid Directory object.
  */
 Node toCanonicalDirectory(Node dir) @safe
 in(dir.type == NodeType.mapping)
 in("class" in dir)
-in(dir["class"] == "Directory")
+in(dir["class"] == "Directory", "`Directory` is expected but actual: "~dir["class"].as!string)
 {
     import std : enforce;
 
@@ -367,14 +368,12 @@ in(dir["class"] == "Directory")
     else if (loc_ !is null)
     {
         ret["location"] = loc_.as!string.absoluteURI(pwd);
-        ret.remove("path");
-        ret.remove("listing");
+        ret.removeAt("listing");
     }
     else if (path_ !is null)
     {
         ret["location"] = path_.as!string.absoluteURI(pwd);
-        ret.remove("path");
-        ret.remove("listing");
+        ret.removeAt("listing");
     }
 
     if (auto bname = "basename" in dir)
@@ -388,6 +387,8 @@ in(dir["class"] == "Directory")
         import std : baseName;
         ret["basename"] = p_.as!string.path.baseName;
     }
+
+    ret.removeAt("path");
 
     if (auto listing = "listing" in dir)
     {
@@ -412,4 +413,48 @@ in(dir["class"] == "Directory")
         ret["listing"] = canonicalizedListing;
     }
     return ret;
+}
+
+///
+@safe unittest
+{
+    import std : to;
+    enum origYAML = q"EOS
+        class: Directory
+        path: /foo/bar/buzzDir
+        ext:field: "This is an extension field."
+EOS";
+
+    auto origFile = Loader.fromString(origYAML).load.toCanonicalDirectory;
+    assert(origFile.length == 4, "Actual: "~origFile.length.to!string);
+    assert(origFile["class"] == "Directory");
+    assert(origFile["location"] == "file:///foo/bar/buzzDir");
+    assert(origFile["basename"] == "buzzDir");
+    assert(origFile["ext:field"] == "This is an extension field.");
+}
+
+///
+@safe unittest
+{
+    enum origYAML = q"EOS
+        class: Directory
+        listing:
+          - class: File
+            contents: |
+              foo
+          - class: File
+            contents: |
+              bar
+EOS";
+
+    auto origFile = Loader.fromString(origYAML).load.toCanonicalDirectory;
+    assert(origFile.length == 2);
+    assert(origFile["class"] == "Directory");
+    assert(origFile["listing"].length == 2);
+    assert(origFile["listing"][0].length == 2);
+    assert(origFile["listing"][0]["class"] == "File");
+    assert(origFile["listing"][0]["contents"] == "foo\n");
+    assert(origFile["listing"][1].length == 2);
+    assert(origFile["listing"][1]["class"] == "File");
+    assert(origFile["listing"][1]["contents"] == "bar\n");
 }
