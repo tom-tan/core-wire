@@ -116,7 +116,7 @@ Node upload(Node input, string destURI, Wire wire)
 Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con) @safe
 {
     import std : format;
-    import wire.exception : WireException;
+    import wire.exception : InvalidInput;
 
     switch(inp.type)
     {
@@ -138,12 +138,12 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con) @safe
             case "File": return inp.downloadFile(dest, wire, con);
             case "Directory": return inp.downloadDirectory(dest, wire, con);
             default:
-                throw new WireException(format!"Unknown class: `%s`"(c));
+                throw new InvalidInput(format!"Unknown class: `%s`"(c));
             }
         }
         return download(inp, dest, wire, con);
     default:
-        throw new WireException(format!"Unsupported node type: `%s`"(inp.type));
+        throw new InvalidInput(format!"Unsupported node type: `%s`"(inp.type));
     }
 }
 
@@ -187,7 +187,7 @@ in(dest.path.isDir)
         loc = destURI;
     }
 
-    Node ret = Node(cFile);
+    auto ret = Node(cFile);
     ret["location"] = loc;
     ret["path"] = loc.path;
     if (auto sec = "secondaryFiles" in cFile)
@@ -208,7 +208,46 @@ in(dest.scheme == "file")
 in(dest.path.exists)
 in(dest.path.isDir)
 {
-    return Node(dir);
+    import std : absolutePath, buildPath, dirName;
+
+    auto cDir = dir.toCanonicalDirectory;
+    auto ret = Node(cDir);
+
+    if (auto listing = "listing" in cDir)
+    {
+        import std : array, map;
+        import std.file : mkdir;
+
+        // directory literal
+        string bname;
+        if (auto bn_ = "basename" in cDir)
+        {
+            bname = bn_.as!string;
+        }
+        else
+        {
+            import std : randomUUID;
+            bname = randomUUID.toString;
+        }
+        auto destPath = buildPath(dest.path, bname);
+        mkdir(destPath);
+        auto loc = "file://"~destPath;
+
+        auto listingDir = loc;
+        auto lst = listing.sequence.map!(s => downloadParam(s, listingDir, wire, config)).array;
+        ret["location"] = loc;
+        ret["path"] = loc.path;
+        ret["listing"] = lst;
+    }
+    else
+    {
+        auto destURI = buildPath(dest, cDir["basename"].as!string);
+        wire.downloadDirectory(cDir["location"].as!string, destURI);
+        auto loc = destURI;
+        ret["location"] = loc;
+        ret["path"] = loc.path;
+    }
+    return ret;
 }
 
 /**

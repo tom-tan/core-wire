@@ -8,7 +8,7 @@ module wire;
 import std.file : exists, isFile;
 
 import wire.core : CoreWire, CoreWireType;
-import wire.exception : WireException;
+import wire.exception : UnsupportedScheme;
 import wire.util : path, scheme;
 
 ///
@@ -20,13 +20,13 @@ class Wire
         import std.exception : enforce;
         import std.format : format;
 
-        enforce!WireException(
+        enforce!UnsupportedScheme(
             coreWire.canSupport(scheme),
             () @trusted { return format!"`%s` is not supported by `%s`"(scheme, coreWire); }(),
         );
 
         auto t = coreWire.type & type;
-        enforce!WireException(t != CoreWireType.none);
+        enforce!UnsupportedScheme(t != CoreWireType.none);
 
         if (t & CoreWireType.up)
         {
@@ -60,7 +60,7 @@ class Wire
         import std.format : format;
 
         auto srcScheme = src.scheme;
-        auto dl = enforce!WireException(
+        auto dl = enforce!UnsupportedScheme(
             srcScheme in downloader,
             format!"Core wire for scheme `%s` not found"(srcScheme),
         );
@@ -68,13 +68,13 @@ class Wire
     }
 
     ///
-    void downloadDirectory(string src, string dst) const
+    void downloadDirectory(string src, string dst) const @safe
     {
         import std.exception : enforce;
         import std.format : format;
 
         auto srcScheme = src.scheme;
-        auto dl = enforce!WireException(
+        auto dl = enforce!UnsupportedScheme(
             srcScheme in downloader,
             format!"Core wire for scheme `%s` not found"(srcScheme),
         );
@@ -82,7 +82,7 @@ class Wire
     }
 
     ///
-    void uploadDirectory(string src, string dst) const
+    void uploadDirectory(string src, string dst) const @safe
     in(src.scheme == "file")
     in(src.path.exists && src.path.isFile)
     {
@@ -90,7 +90,7 @@ class Wire
         import std.format : format;
 
         auto dstScheme = dst.scheme;
-        auto ul = enforce!WireException(
+        auto ul = enforce!UnsupportedScheme(
             dstScheme in uploader,
             format!"Core wire for scheme `%s` not found"(dstScheme),
         );

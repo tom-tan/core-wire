@@ -5,13 +5,34 @@
  */
 module wire.exception;
 
+import std.exception : basicExceptionCtors;
+
 ///
-class WireException : Exception
+abstract class WireException : Exception
 {
-    private import std.exception : basicExceptionCtors;
     mixin basicExceptionCtors;
 }
 
-// input file not found (same as network error?)
-// network error when download/upload
-// invalid File/Directory object (e.g., missing fields, type errors)
+/// input file or directory not found
+class InputNotFound : WireException
+{
+    mixin basicExceptionCtors;
+}
+
+/// resource cannot be uploaded or downloaded
+class ResourceError : WireException
+{
+    mixin basicExceptionCtors;
+}
+
+/// invalid input object
+class InvalidInput : WireException
+{
+    mixin basicExceptionCtors;
+}
+
+/// unsupported scheme
+class UnsupportedScheme : WireException
+{
+    mixin basicExceptionCtors;
+}
