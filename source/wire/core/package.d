@@ -49,11 +49,6 @@ interface CoreWire
         return schemes.canFind(scheme);
     }
 
-    /**
-     * Returns: true if this core wire can make directories to the remote resources
-     */
-    bool canMkdir() const @safe;
-
     ///
     CoreWireType type() const @safe;
 
