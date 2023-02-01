@@ -17,7 +17,7 @@ enum CoreWireType : ubyte
     none = 0b00,
     up   = 0b01,
     down = 0b10,
-    both = 0b11,
+    both = up | down,
 }
 
 ///
