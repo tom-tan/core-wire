@@ -54,7 +54,6 @@ class FileCoreWire : CoreWire
         else
         {
             () @trusted // See_Also: https://github.com/dlang/phobos/blob/67d4521c2c53b4e8c4a5213860c49caf9396bde2/std/file.d#L4468
-
             {
             import std : dirEntries, DirEntry, mkdir, SpanMode;
             mkdir(dstPath);
