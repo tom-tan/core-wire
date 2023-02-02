@@ -74,17 +74,23 @@ class FileCoreWire : CoreWire
                 }
                 else if (e.isSymlink)
                 {
-                    import std : absolutePath, isFile, readLink;
+                    import std : absolutePath, enforce, exists, format, isDir, isFile, readLink, startsWith;
 
                     auto resolved = e.name.readLink.absolutePath;
+                    enforce(!srcPath.startsWith(resolved), "Recursive symlinks are not allowed");
+                    enforce(resolved.exists, format!"`%s` does not exist (linked from `%s`)"(resolved, e.name));
                     if (resolved.isFile)
                     {
                         import std.file : copy;
                         copy(resolved, dstEntry);
                     }
-                    else
+                    else if (resolved.isDir)
                     {
                         downloadDirectory("file://"~resolved, "file://"~dstEntry);
+                    }
+                    else
+                    {
+                        throw new Exception("Unknown file type");
                     }
                 }
             }
