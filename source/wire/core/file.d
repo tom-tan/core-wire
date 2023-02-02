@@ -55,25 +55,38 @@ class FileCoreWire : CoreWire
         {
             () @trusted
             {
-            import std : baseName, buildPath, dirEntries, DirEntry, mkdir, SpanMode;
-            auto destDirName = buildPath(dstPath, srcPath.baseName);
-            mkdir(destDirName);
-            foreach(DirEntry e; dirEntries(srcPath, SpanMode.depth, true))
+            // import std : buildPath, dirEntries, DirEntry, isFile, mkdir, readLink, SpanMode;
+            import std : dirEntries, DirEntry, mkdir, SpanMode;
+            mkdir(dstPath);
+            foreach(DirEntry e; dirEntries(srcPath, SpanMode.breadth, true))
             {
-                import std : stderr;
+                import std : buildPath, relativePath;
+
+                auto srcRelEntry = e.name.relativePath(srcPath);
+                auto dstEntry = buildPath(dstPath, srcRelEntry);
                 if (e.isFile)
                 {
-                    stderr.writefln!"copy file `%s` to `%s`"(e.name, destDirName);
-                    //copy(e.name, destDirName);
+                    import std.file : copy;
+                    copy(e.name, dstEntry);
                 }
                 else if (e.isDir)
                 {
-                    stderr.writefln!"mkdir `%s` to `%s`"(e.name, destDirName);
-                    // mkdirRecurse(buildPath(destDirName, e.name))?
+                    mkdir(dstEntry);
                 }
                 else if (e.isSymlink)
                 {
-                    stderr.writefln!"`%s` is symlink. how to deal with it?"(e.name);
+                    import std : absolutePath, isFile, readLink;
+
+                    auto resolved = e.name.readLink.absolutePath;
+                    if (resolved.isFile)
+                    {
+                        import std.file : copy;
+                        copy(resolved, dstEntry);
+                    }
+                    else
+                    {
+                        downloadDirectory("file://"~resolved, "file://"~dstEntry);
+                    }
                 }
             }
             }();
@@ -103,7 +116,7 @@ protected:
 
 class FileCoreWireConfig : CoreWireConfig
 {
-    this(bool allowSymLink)
+    this(bool allowSymLink) @nogc nothrow pure @safe
     {
         this.allowSymLink = allowSymLink;
     }
@@ -112,8 +125,8 @@ class FileCoreWireConfig : CoreWireConfig
     bool allowSymLink;
 }
 
-/// case of `allowSymlink = false`
-unittest
+/// Download file with `allowSymlink = false`
+@safe unittest
 {
     import std : buildPath, exists, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir, stderr;
     import std.file : write; // not to conflict with std.stdio.write
@@ -144,8 +157,8 @@ unittest
     assert(dstURI.path.readText == contents);
 }
 
-/// case of `allowSymlink = true`
-unittest
+/// Download file with `allowSymlink = true`
+@safe unittest
 {
     import std : buildPath, exists, isFile, isSymlink, mkdir, randomUUID, readLink, readText, rmdirRecurse, tempDir;
     import std.file : write; // not to conflict with std.stdio.write
@@ -177,13 +190,41 @@ unittest
     assert(dstURI.path.readLink.readText == contents);
 }
 
-
-///
-unittest
+/// Download directory with `allowSymlink = false`
+@safe unittest
 {
-    // mk tmpdir
-    // scope(exit) rm
-    // mk tmpdir
-    // dl dir
-    // verify
+    import std : buildPath, exists, isDir, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir, stderr;
+    import std.file : write; // not to conflict with std.stdio.write
+    import wire.util : absoluteURI, path;
+
+    enum dirName = "deleteme";
+    enum fileName = "deleteThisFile";
+    enum contents = "This is an example text.\n";
+
+    // building src directory
+    auto srcDir = buildPath(tempDir, randomUUID.toString);
+    mkdir(srcDir);
+    scope(exit) rmdirRecurse(srcDir);
+
+    auto srcURI = buildPath(srcDir, dirName).absoluteURI;
+    mkdir(srcURI.path);
+    buildPath(srcURI.path, fileName).write(contents);
+
+    // generate dst base directory
+    auto dstDir = buildPath(tempDir, randomUUID.toString);
+    mkdir(dstDir);
+    scope(exit) rmdirRecurse(dstDir);
+
+    auto dstURI = buildPath(dstDir, dirName).absoluteURI;
+    
+    auto cw = new FileCoreWire(new FileCoreWireConfig(false));
+    cw.downloadDirectory(srcURI, dstURI);
+
+    // assertions
+    assert(dstURI.path.exists);
+    assert(dstURI.path.isDir);
+    auto dirFilePath = buildPath(dstURI.path, fileName);
+    assert(dirFilePath.exists);
+    assert(dirFilePath.isFile);
+    assert(dirFilePath.readText == contents);
 }
