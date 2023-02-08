@@ -7,7 +7,8 @@ module wire.cwl;
 
 import dyaml;
 
-import std : exists, isDir;
+import std : exists, isDir, make, redBlackTree, RedBlackTree;
+import std : stderr;
 
 import wire : Wire;
 import wire.core : CoreWireConfig;
@@ -21,12 +22,29 @@ enum LeaveTmpdir
     never,
 }
 
+/// Strategy to compute checksum
+enum ChecksumStrategy
+{
+    noCompute, /// do not compute checksum
+    keep,      /// keep input checksums
+    compute,   /// compute checksum but does not validate input checksums
+    validate,  /// compute checksum and also validate input checksums
+}
+
 struct DownloadConfig
 {
     ///
     LeaveTmpdir leaveTmpDir;
+    ///
+    bool allowDuplication;
     /// make random directory for each parameter or not
     bool makeRandomDir;
+
+    ///
+    ChecksumStrategy checksumStrategy;
+
+    ///
+    bool loadContents;
 
     /// 
     CoreWireConfig[string] config; // option to overwrite given options (is it needed?)
@@ -35,7 +53,7 @@ struct DownloadConfig
 /**
  * It makes a new sub directory for each parameter 
  */
-Node download(Node input, string destURI, Wire wire, DownloadConfig con) @safe
+Node download(Node input, string destURI, Wire wire, DownloadConfig con, RedBlackTree!string downloaded = make!(RedBlackTree!string)) @safe
 in(destURI.scheme == "file")
 in(input.type == NodeType.mapping)
 {
@@ -76,7 +94,7 @@ in(input.type == NodeType.mapping)
             auto dest = con.makeRandomDir
                 ? buildPath(destPath, randomUUID.toString)
                 : destPath;
-            val = downloadParam(v, "file://"~dest, wire, con);
+            val = downloadParam(v, "file://"~dest, wire, con, downloaded);
         }
 
         if (val.type != NodeType.null_)
@@ -91,10 +109,10 @@ in(input.type == NodeType.mapping)
         () @trusted {
             foreach(string name; dirEntries(dir, SpanMode.shallow))
             {
+                assert(buildPath(destPath, name.baseName).exists);
                 rename(name, buildPath(destPath, name.baseName));
             }
         }();
-        rmdirRecurse(dir);
     }
     else
     {
@@ -113,7 +131,7 @@ Node upload(Node input, string destURI, Wire wire)
 }
 
 ///
-Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con) @safe
+Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con, RedBlackTree!string downloaded) @safe
 {
     import std : format;
     import wire.exception : InvalidInput;
@@ -127,7 +145,7 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con) @safe
     case NodeType.sequence:
         import std : array, map;
         return Node(
-            inp.sequence.map!(i => i.downloadParam(dest, wire, con)).array
+            inp.sequence.map!(i => i.downloadParam(dest, wire, con, downloaded)).array
         );
     case NodeType.mapping:
         if (auto class_ = "class" in inp)
@@ -135,28 +153,28 @@ Node downloadParam(Node inp, string dest, Wire wire, DownloadConfig con) @safe
             auto c = class_.as!string;
             switch(c)
             {
-            case "File": return inp.downloadFile(dest, wire, con);
-            case "Directory": return inp.downloadDirectory(dest, wire, con);
+            case "File": return inp.downloadFile(dest, wire, con, downloaded);
+            case "Directory": return inp.downloadDirectory(dest, wire, con, downloaded);
             default:
                 throw new InvalidInput(format!"Unknown class: `%s`"(c));
             }
         }
-        return download(inp, dest, wire, con);
+        return download(inp, dest, wire, con, downloaded);
     default:
         throw new InvalidInput(format!"Unsupported node type: `%s`"(inp.type));
     }
 }
 
 ///
-auto downloadFile(Node file, string dest, Wire wire, DownloadConfig config) @safe
+auto downloadFile(Node file, string destDirURI, Wire wire, DownloadConfig config, RedBlackTree!string downloaded) @safe
 in(file.type == NodeType.mapping)
 in("class" in file)
 in(file["class"] == "File")
-in(dest.scheme == "file")
-in(dest.path.exists)
-in(dest.path.isDir)
+in(destDirURI.scheme == "file")
+in(destDirURI.path.exists)
+in(destDirURI.path.isDir)
 {
-    import std : absolutePath, buildPath, dirName;
+    import std : absolutePath, baseName, buildPath, dirName, extension, getSize, stripExtension;
 
     auto cFile = file.toCanonicalFile;
     string loc;
@@ -176,13 +194,14 @@ in(dest.path.isDir)
             import std : randomUUID;
             bname = randomUUID.toString;
         }
-        auto destPath = buildPath(dest.path, bname);
+        auto destPath = buildPath(destDirURI.path, bname);
         destPath.write(con.as!string);
         loc = "file://"~destPath;
     }
     else
     {
-        auto destURI = buildPath(dest, cFile["basename"].as!string);
+
+        auto destURI = buildPath(destDirURI, cFile["basename"].as!string);
         wire.downloadFile(cFile["location"].as!string, destURI);
         loc = destURI;
     }
@@ -190,17 +209,86 @@ in(dest.path.isDir)
     auto ret = Node(cFile);
     ret["location"] = loc;
     ret["path"] = loc.path;
+    ret["dirname"] = destDirURI.path;
+    ret["basename"] = loc.path.baseName;
+    ret["nameroot"] = loc.path.baseName.stripExtension;
+    ret["nameext"] = loc.path.baseName.extension;
+    ret["size"] = getSize(loc.path);
+
+    downloaded.insert(loc.path);
+
+    if (config.checksumStrategy == ChecksumStrategy.compute ||
+        config.checksumStrategy == ChecksumStrategy.validate)
+    {
+        import std : enforce;
+
+        auto checksum = calcChecksum(loc.path);
+        enforce(config.checksumStrategy == ChecksumStrategy.compute || cFile["checksum"] == checksum);
+        ret["checksum"] = checksum;
+    }
+
     if (auto sec = "secondaryFiles" in cFile)
     {
         import std : array, map;
-        auto sf = sec.sequence.map!(s => downloadParam(s, dest, wire, config)).array;
+        auto sf = sec.sequence.map!(s => downloadParam(s, destDirURI, wire, config, downloaded)).array;
         ret["secondaryFiles"] = sf;
     }
     return ret;
 }
 
+@safe unittest
+{
+    import std : buildPath, equal, exists, extension, format, isFile, mkdir, randomUUID,
+                 readText, rmdirRecurse, stripExtension, tempDir;
+    import std.file : write; // not to conflict with std.stdio.write
+    import wire.core : CoreWireType;
+    import wire.core.file : FileCoreWire, FileCoreWireConfig;
+    import wire.util : absoluteURI, path;
+
+    enum fileName = "deleteme";
+    enum contents = "This is an example text.\n";
+
+    auto srcDir = buildPath(tempDir, randomUUID.toString);
+    mkdir(srcDir);
+    scope(exit) rmdirRecurse(srcDir);
+
+    auto srcURI = buildPath(srcDir, fileName).absoluteURI;
+    srcURI.path.write(contents);
+
+    auto srcYAML = format!q"EOS
+class: File
+location: %s
+EOS"(srcURI);
+
+    auto src = Loader.fromString(srcYAML).load.toCanonicalFile;
+
+    auto dstDir = buildPath(tempDir, randomUUID.toString);
+    mkdir(dstDir);
+    scope(exit) rmdirRecurse(dstDir);
+    auto dstDirURI = dstDir.absoluteURI;
+
+    auto wire = new Wire;
+    wire.addCoreWire("file", new FileCoreWire(new FileCoreWireConfig(false)), CoreWireType.both);
+
+    auto downloaded = make!(RedBlackTree!string);
+
+    auto staged = downloadFile(src, dstDirURI, wire, DownloadConfig.init, downloaded);
+    auto dstURI = buildPath(dstDirURI, fileName);
+    assert(staged.length == 8);
+    assert(staged["class"] == "File");
+    assert(staged["location"] == dstURI);
+    assert(staged["path"] == dstURI.path);
+    assert(staged["basename"] == fileName);
+    assert(staged["dirname"] == dstDirURI.path);
+    assert(staged["nameroot"] == fileName.stripExtension);
+    assert(staged["nameext"] == fileName.extension);
+    assert(staged["size"] == contents.length);
+
+    assert(equal(downloaded[], [dstURI.path]));
+}
+
 ///
-auto downloadDirectory(Node dir, string dest, Wire wire, DownloadConfig config) @safe
+auto downloadDirectory(Node dir, string dest, Wire wire, DownloadConfig config, RedBlackTree!string downloaded) @safe
 in(dir.type == NodeType.mapping)
 in("class" in dir)
 in(dir["class"] == "Directory")
@@ -234,7 +322,7 @@ in(dest.path.isDir)
         auto loc = "file://"~destPath;
 
         auto listingDir = loc;
-        auto lst = listing.sequence.map!(s => downloadParam(s, listingDir, wire, config)).array;
+        auto lst = listing.sequence.map!(s => downloadParam(s, listingDir, wire, config, downloaded)).array;
         ret["location"] = loc;
         ret["path"] = loc.path;
         ret["listing"] = lst;

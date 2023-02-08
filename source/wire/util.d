@@ -6,7 +6,7 @@
 module wire.util;
 
 import dyaml : Node;
-import std : getcwd, JSONValue;
+import std : exists, getcwd, isFile, JSONValue;
 
 /** 
  * Returns: an absolute URI
@@ -87,6 +87,25 @@ string path(string uri) pure @safe
         return ret[2];
     }
     return uri;
+}
+
+///
+auto calcChecksum(string path) @trusted
+in(path.exists)
+in(path.isFile)
+{
+    import std.digest.sha : SHA1;
+    import std : chunks, File, toHexString;
+
+    SHA1 hash;
+    hash.start;
+
+    auto file = File(path);
+    foreach(ubyte[] buf; chunks(file, 4096))
+    {
+        hash.put(buf);
+    }
+    return toHexString(hash.finish);
 }
 
 ///
