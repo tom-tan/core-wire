@@ -12,6 +12,16 @@ import wire.exception : UnsupportedScheme;
 import wire.util : path, scheme;
 
 ///
+Wire defaultWire;
+
+static this()
+{
+    import wire.core.file : FileCoreWire, FileCoreWireConfig;
+    defaultWire = new Wire;
+    defaultWire.addCoreWire("file", new FileCoreWire(new FileCoreWireConfig(false)), CoreWireType.down);
+}
+
+///
 class Wire
 {
     ///

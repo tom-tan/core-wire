@@ -133,7 +133,7 @@ class FileCoreWireConfig : CoreWireConfig
 /// Download file with `allowSymlink = false`
 @safe unittest
 {
-    import std : buildPath, exists, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir, stderr;
+    import std : buildPath, exists, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir;
     import std.file : write; // not to conflict with std.stdio.write
     import wire.util : absoluteURI, path;
 
@@ -198,7 +198,7 @@ class FileCoreWireConfig : CoreWireConfig
 /// Download directory with `allowSymlink = false`
 @safe unittest
 {
-    import std : buildPath, exists, isDir, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir, stderr;
+    import std : buildPath, exists, isDir, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir;
     import std.file : write; // not to conflict with std.stdio.write
     import wire.util : absoluteURI, path;
 
