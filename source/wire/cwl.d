@@ -7,7 +7,7 @@ module wire.cwl;
 
 import dyaml;
 
-import std : exists, isDir, make, redBlackTree, RedBlackTree;
+import std : empty, exists, isDir, make, redBlackTree, RedBlackTree;
 
 import wire : Wire;
 import wire.core : CoreWireConfig;
@@ -60,6 +60,9 @@ struct DownloadConfig
 
     /// 
     CoreWireConfig[string] config; // option to overwrite given options (is it needed?)
+
+private:
+    string temporalPath;
 }
 
 ///
@@ -87,7 +90,9 @@ in(input.type == NodeType.mapping)
     }
 
     auto downloaded = make!(RedBlackTree!string);
-    auto ret = downloadImpl(input, tempDestPath.absoluteURI, wire, con, downloaded);
+    auto internalConfig = con;
+    internalConfig.temporalPath = tempDestPath;
+    auto ret = downloadImpl(input, destURI, wire, internalConfig, downloaded);
 
     auto destPath = destURI.path;
 
@@ -115,8 +120,8 @@ in(input.type == NodeType.mapping)
 ///
 Node downloadImpl(Node input, string destURI, Wire wire, DownloadConfig con, RedBlackTree!string downloaded = make!(RedBlackTree!string)) @safe
 in(destURI.scheme == "file")
-in(destURI.path.exists)
-in(destURI.path.isDir)
+in(con.temporalPath.exists)
+in(con.temporalPath.isDir)
 in(input.type == NodeType.mapping)
 {
     import std : buildPath, mkdir, randomUUID;
@@ -152,16 +157,19 @@ in(input.type == NodeType.mapping)
                 if ("class" in v)
                 {
                     string newDestURI;
+                    DownloadConfig newConfig = con;
                     if (con.makeRandomDir)
                     {
-                        newDestURI = buildPath(destURI.path, randomUUID.toString);
-                        mkdir(newDestURI.path);
+                        auto baseName = randomUUID.toString;
+                        newDestURI = buildPath(destURI, baseName);
+                        newConfig.temporalPath = buildPath(con.temporalPath, baseName);
+                        mkdir(newConfig.temporalPath);
                     }
                     else
                     {
                         newDestURI = destURI;
                     }
-                    val = downloadClass(v, newDestURI, wire, con, downloaded);
+                    val = downloadClass(v, newDestURI, wire, newConfig, downloaded);
                 }
                 else
                 {
@@ -186,8 +194,8 @@ in(input.type == NodeType.mapping)
 ///
 Node downloadClass(Node input, string destURI, Wire wire, DownloadConfig con, RedBlackTree!string downloaded = make!(RedBlackTree!string)) @safe
 in(destURI.scheme == "file")
-in(destURI.path.exists)
-in(destURI.path.isDir)
+in(con.temporalPath.exists)
+in(con.temporalPath.isDir)
 in(input.type == NodeType.mapping)
 in("class" in input)
 {
@@ -210,14 +218,16 @@ in(file.type == NodeType.mapping)
 in("class" in file)
 in(file["class"] == "File")
 in(destDirURI.scheme == "file")
-in(destDirURI.path.exists)
-in(destDirURI.path.isDir)
+in(config.temporalPath.exists)
+in(config.temporalPath.isDir)
 {
     import std : absolutePath, baseName, buildPath, dirName, extension, getSize, stripExtension;
     auto cFile = file.toCanonicalFile;
     string loc;
 
-    if (auto con = "contents" in cFile)
+    string actualDestPath;
+
+    if (auto contents = "contents" in cFile)
     {
         import std.file : write;
 
@@ -232,16 +242,16 @@ in(destDirURI.path.isDir)
             import std : randomUUID;
             bname = randomUUID.toString;
         }
-        auto destPath = buildPath(destDirURI.path, bname);
-        destPath.write(con.as!string);
-        loc = "file://"~destPath;
+        actualDestPath = buildPath(config.temporalPath, bname);
+        actualDestPath.write(contents.as!string);
+        loc = buildPath(destDirURI, bname);
     }
     else
     {
 
-        auto destURI = buildPath(destDirURI, cFile["basename"].as!string);
-        wire.downloadFile(cFile["location"].as!string, destURI);
-        loc = destURI;
+        actualDestPath = buildPath(config.temporalPath, cFile["basename"].as!string);
+        wire.downloadFile(cFile["location"].as!string, "file://"~actualDestPath);
+        loc = buildPath(destDirURI, cFile["basename"].as!string);
     }
 
     auto ret = Node(cFile);
@@ -251,16 +261,16 @@ in(destDirURI.path.isDir)
     ret["basename"] = loc.path.baseName;
     ret["nameroot"] = loc.path.baseName.stripExtension;
     ret["nameext"] = loc.path.baseName.extension;
-    ret["size"] = getSize(loc.path);
+    ret["size"] = getSize(actualDestPath);
 
-    downloaded.insert(loc.path);
+    downloaded.insert(actualDestPath);
 
     if (config.checksumStrategy == FileAttributeStrategy.compute ||
         config.checksumStrategy == FileAttributeStrategy.validate)
     {
         import std : enforce;
 
-        auto checksum = calcChecksum(loc.path);
+        auto checksum = calcChecksum(actualDestPath);
         enforce(config.checksumStrategy == FileAttributeStrategy.compute || cFile["checksum"] == checksum);
         ret["checksum"] = checksum;
     }
@@ -310,7 +320,8 @@ EOS"(srcURI);
 
     auto downloaded = make!(RedBlackTree!string);
 
-    auto staged = downloadFile(src, dstDirURI, wire, DownloadConfig.init, downloaded);
+    DownloadConfig con = { temporalPath: dstDirURI.path };
+    auto staged = downloadFile(src, dstDirURI, wire, con, downloaded);
     auto dstURI = buildPath(dstDirURI, fileName);
     assert(staged.length == 8);
     assert(staged["class"] == "File");
@@ -326,18 +337,21 @@ EOS"(srcURI);
 }
 
 ///
-auto downloadDirectory(Node dir, string dest, Wire wire, DownloadConfig config, RedBlackTree!string downloaded) @safe
+auto downloadDirectory(Node dir, string destDirURI, Wire wire, DownloadConfig config, RedBlackTree!string downloaded) @safe
 in(dir.type == NodeType.mapping)
 in("class" in dir)
 in(dir["class"] == "Directory")
-in(dest.scheme == "file")
-in(dest.path.exists)
-in(dest.path.isDir)
+in(destDirURI.scheme == "file")
+in(config.temporalPath.exists)
+in(config.temporalPath.isDir)
 {
     import std : absolutePath, buildPath, dirName;
 
     auto cDir = dir.toCanonicalDirectory;
     auto ret = Node(cDir);
+
+    auto actualDestDir = config.temporalPath.empty ? destDirURI.path : config.temporalPath;
+    string actualDestPath;
 
     if (auto listing = "listing" in cDir)
     {
@@ -356,26 +370,29 @@ in(dest.path.isDir)
             bname = randomUUID.toString;
             ret["basename"] = bname;
         }
-        auto destPath = buildPath(dest.path, bname);
-        mkdir(destPath);
-        auto loc = "file://"~destPath;
+        actualDestPath = buildPath(actualDestDir, bname);
+        mkdir(actualDestPath);
+        auto loc = buildPath(destDirURI, bname);
+
+        auto newConfig = config;
+        newConfig.temporalPath = actualDestPath;
 
         auto listingDir = loc;
-        auto lst = listing.sequence.map!(s => downloadClass(s, listingDir, wire, config, downloaded)).array;
+        auto lst = listing.sequence.map!(s => downloadClass(s, listingDir, wire, newConfig, downloaded)).array;
         ret["location"] = loc;
         ret["path"] = loc.path;
         ret["listing"] = lst;
     }
     else
     {
-        auto destURI = buildPath(dest, cDir["basename"].as!string);
-        wire.downloadDirectory(cDir["location"].as!string, destURI);
-        auto loc = destURI;
+        actualDestPath = buildPath(actualDestDir, cDir["basename"].as!string);
+        wire.downloadDirectory(cDir["location"].as!string, "file://"~actualDestPath);
+        auto loc = buildPath(destDirURI, cDir["basename"].as!string);
         ret["location"] = loc;
         ret["path"] = loc.path;
     }
 
-    downloaded.insert(ret["path"].as!string);
+    downloaded.insert(actualDestPath);
 
     return ret;
 }
@@ -419,7 +436,8 @@ EOS"(srcURI);
 
     auto downloaded = make!(RedBlackTree!string);
 
-    auto staged = downloadDirectory(src, dstDirURI, wire, DownloadConfig.init, downloaded);
+    DownloadConfig con = { temporalPath: dstDirURI.path };
+    auto staged = downloadDirectory(src, dstDirURI, wire, con, downloaded);
     auto dstURI = buildPath(dstDirURI, dirName);
     assert(staged.length == 4);
     assert(staged["class"] == "Directory");
@@ -435,7 +453,6 @@ Node upload(Node node, string destURI, Wire wire)
 {
     assert(false);
 }
-
 
 /**
  * It converts a File node to a canonicalized File node.
