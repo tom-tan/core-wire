@@ -105,6 +105,12 @@ class FileCoreWire : CoreWire
     }
 
     ///
+    override bool supportDownloadDirectory() const @safe
+    {
+        return true;
+    }
+
+    ///
     override CoreWireType type() const @safe
     {
         return CoreWireType.both;

@@ -179,7 +179,7 @@ in(input.type == NodeType.mapping)
             default:
                 import std : format;
                 import wire.exception : InvalidInput;
-                throw new InvalidInput(format!"Unsupported node type: `%s`"(v.type));
+                throw new InvalidInput(format!"Invalid node type: `%s`"(v.type));
             }
         }
 

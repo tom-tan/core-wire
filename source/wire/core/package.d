@@ -21,7 +21,7 @@ enum CoreWireType : ubyte
 }
 
 ///
-interface CoreWire
+abstract class CoreWire
 {
     ///
     void downloadFile(string src, string dst) const @safe
@@ -35,7 +35,14 @@ interface CoreWire
     in(dst.scheme == "file")
     in(schemes.canFind(src.scheme))
     in(dst.path.dirName.exists && dst.path.dirName.isDir)
-    out(;dst.path.exists && dst.path.isDir);
+    out(;dst.path.exists && dst.path.isDir)
+    {
+        import std : format;
+        import wire.exception : UnsupportedFeature;
+
+        auto s = src.scheme;
+        throw new UnsupportedFeature(format!"CoreWire for `%s` does not support downloading directory"(s));
+    }
 
     ///
     void uploadDirectory(string src, string dst) const @safe
@@ -44,10 +51,13 @@ interface CoreWire
     in(src.path.exists && src.path.isDir);
 
     ///
-    final bool canSupport(string scheme) const @safe
+    final bool support(string scheme) const @safe
     {
         return schemes.canFind(scheme);
     }
+
+    ///
+    bool supportDownloadDirectory() const @safe;
 
     ///
     CoreWireType type() const @safe;

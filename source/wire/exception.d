@@ -31,8 +31,8 @@ class InvalidInput : WireException
     mixin basicExceptionCtors;
 }
 
-/// unsupported scheme
-class UnsupportedScheme : WireException
+/// unsupported feature
+class UnsupportedFeature : WireException
 {
     mixin basicExceptionCtors;
 }

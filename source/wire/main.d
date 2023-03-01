@@ -12,15 +12,17 @@ int wireMain(string[] args)
     import std;
     import wire : defaultWire;
     import wire.cwl : download, upload, DownloadConfig;
-    import wire.util : absoluteURI, scheme;
+    import wire.util : absoluteURI, scheme, toJSON;
 
     string destURI;
     string configFile;
+    DownloadConfig con;
 
     auto opts = args.getopt(
         config.caseSensitive,
         config.required,
         "dest", "Destination base URI",  (string opt, string uri) { destURI = uri.absoluteURI; },
+        "randomize", "Make ramdomized subdirectory for each File or Directory", &con.makeRandomDir,
         "config", "Configuration file", &configFile,
     );
 
@@ -47,10 +49,9 @@ EOS".outdent[0 .. $ - 1])(args[0].baseName);
     auto node = loader.load;
 
     auto staged = destURI.scheme == "file"
-        ? download(node, destURI, defaultWire, DownloadConfig.init)
+        ? download(node, destURI, defaultWire, con)
         : upload(node, destURI, defaultWire);
 
-    import wire.util : toJSON;
     writeln(staged.toJSON);
     return 0;
 }

@@ -8,7 +8,7 @@ module wire;
 import std.file : exists, isFile;
 
 import wire.core : CoreWire, CoreWireType;
-import wire.exception : UnsupportedScheme;
+import wire.exception : UnsupportedFeature;
 import wire.util : path, scheme;
 
 ///
@@ -17,8 +17,11 @@ Wire defaultWire;
 static this()
 {
     import wire.core.file : FileCoreWire, FileCoreWireConfig;
+    import wire.core.http : HTTPCoreWire;
     defaultWire = new Wire;
     defaultWire.addCoreWire("file", new FileCoreWire(new FileCoreWireConfig(false)), CoreWireType.down);
+    defaultWire.addCoreWire("http", new HTTPCoreWire(null), CoreWireType.down);
+    defaultWire.addCoreWire("https", new HTTPCoreWire(null), CoreWireType.down);
 }
 
 ///
@@ -30,13 +33,13 @@ class Wire
         import std.exception : enforce;
         import std.format : format;
 
-        enforce!UnsupportedScheme(
-            coreWire.canSupport(scheme),
+        enforce!UnsupportedFeature(
+            coreWire.support(scheme),
             () @trusted { return format!"`%s` is not supported by `%s`"(scheme, coreWire); }(),
         );
 
         auto t = coreWire.type & type;
-        enforce!UnsupportedScheme(t != CoreWireType.none);
+        enforce!UnsupportedFeature(t != CoreWireType.none);
 
         if (t & CoreWireType.up)
         {
@@ -70,7 +73,7 @@ class Wire
         import std.format : format;
 
         auto srcScheme = src.scheme;
-        auto dl = enforce!UnsupportedScheme(
+        auto dl = enforce!UnsupportedFeature(
             srcScheme in downloader,
             format!"Core wire for scheme `%s` not found"(srcScheme),
         );
@@ -84,9 +87,13 @@ class Wire
         import std.format : format;
 
         auto srcScheme = src.scheme;
-        auto dl = enforce!UnsupportedScheme(
+        auto dl = enforce!UnsupportedFeature(
             srcScheme in downloader,
             format!"Core wire for scheme `%s` not found"(srcScheme),
+        );
+        enforce(
+            dl.supportDownloadDirectory,
+            format!"Core wire for scheme `%s` does not support downloading non-literal directories"(srcScheme),
         );
         dl.downloadDirectory(src, dst);
     }
@@ -100,7 +107,7 @@ class Wire
         import std.format : format;
 
         auto dstScheme = dst.scheme;
-        auto ul = enforce!UnsupportedScheme(
+        auto ul = enforce!UnsupportedFeature(
             dstScheme in uploader,
             format!"Core wire for scheme `%s` not found"(dstScheme),
         );
