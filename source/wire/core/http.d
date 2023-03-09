@@ -16,23 +16,29 @@ class HTTPCoreWire : CoreWire
     }
 
     ///
-    override void downloadFile(string src, string dst) const
+    override void downloadFile(string src, string dst) const @trusted
     {
         import wire.exception : ResourceError;
         import wire.util : path;
-        import std : enforce, execute, format;
+        import requests;
 
-        auto ret = execute(["curl", "-f", src, "-o", dst.path]);
-        enforce!ResourceError(
-            ret.status == 0,
-            format!"Download `%s` failed with the following message: `%s`"(src, ret.output)
-        );
+        import std : copy, File;
+
+        auto rq = Request();
+        rq.useStreaming = true;
+        auto rs = rq.get(src);
+
+        auto dstFile = File(dst.path, "w");
+        rs.receiveAsRange()
+          .copy(dstFile.lockingBinaryWriter);
+
+        // TODO: handling ResourceEror such as no network connections etc.
     }
 
     ///
     override void uploadDirectory(string src, string dst) const @safe
     {
-        downloadDirectory(src, dst);
+        assert(false, "Not yet implemented");
     }
 
     ///
