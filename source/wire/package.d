@@ -17,11 +17,13 @@ Wire defaultWire;
 static this()
 {
     import wire.core.file : FileCoreWire, FileCoreWireConfig;
+    import wire.core.ftp : FTPCoreWire;
     import wire.core.http : HTTPCoreWire;
     defaultWire = new Wire;
     defaultWire.addCoreWire("file", new FileCoreWire(new FileCoreWireConfig(false)), CoreWireType.down);
-    defaultWire.addCoreWire("http", new HTTPCoreWire(null), CoreWireType.down);
-    defaultWire.addCoreWire("https", new HTTPCoreWire(null), CoreWireType.down);
+    defaultWire.addCoreWire("ftp", new FTPCoreWire(), CoreWireType.down);
+    defaultWire.addCoreWire("http", new HTTPCoreWire(), CoreWireType.down);
+    defaultWire.addCoreWire("https", new HTTPCoreWire(), CoreWireType.down);
 }
 
 ///
