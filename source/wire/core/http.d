@@ -54,7 +54,7 @@ class HTTPCoreWire : CoreWire
     }
 
 protected:
-    override string[] schemes() const nothrow pure @safe
+    override const(string[]) schemes() const nothrow pure @safe
     {
         return ["http", "https"];
     }

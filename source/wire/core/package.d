@@ -63,7 +63,7 @@ abstract class CoreWire
     CoreWireType type() const @safe;
 
 protected:
-    string[] schemes() const @safe;
+    const(string[]) schemes() const @safe;
 }
 
 ///
