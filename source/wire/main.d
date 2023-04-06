@@ -12,7 +12,7 @@ int wireMain(string[] args)
     import std;
     import wire : defaultWire;
     import wire.core.inline : InlineCommandSet;
-    import wire.cwl : download, upload, DownloadConfig;
+    import wire.cwl : download, upload, DownloadConfig, FileAttributeStrategy;
     import wire.util : absoluteURI, scheme, toJSON;
 
     string destURI;
@@ -24,9 +24,19 @@ int wireMain(string[] args)
     auto opts = args.getopt(
         config.caseSensitive,
         config.required,
-        "dest", "Destination base URI",  (string opt, string uri) { destURI = uri.absoluteURI; },
+        "dest", "Destination base URI",  (string _, string uri) { destURI = uri.absoluteURI; },
         "randomize", "Make ramdomized subdirectory for each File or Directory", &con.makeRandomDir,
-        "config", "Configuration file", &configFile,
+        // "config", "Configuration file", &configFile,
+        "keep-checksum", "Keep checksums in the input object", () {
+            con.checksumStrategy = FileAttributeStrategy.keep;
+        },
+        "no-compute-checksum", "Do not compute checksums", () {
+            con.checksumStrategy = FileAttributeStrategy.noCompute;
+        },
+        "compute-checksum", "Compute checksums", () { con.checksumStrategy = FileAttributeStrategy.compute; },
+        "validate-checksum", "Compute checksums and validate with checksums in the input object", () {
+            con.checksumStrategy = FileAttributeStrategy.validate;
+        },
         "inline-dl-file-cmd", q"[format: `scheme:"cmd"`]", (string opt, string val) {
             auto splitted = enforce(val.findSplit(":"), format!"The format of `%s` must be `scheme:cmd`"(opt));
             auto scheme = splitted[0];

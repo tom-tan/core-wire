@@ -50,7 +50,7 @@ struct DownloadConfig
     bool makeRandomDir;
 
     ///
-    FileAttributeStrategy checksumStrategy;
+    FileAttributeStrategy checksumStrategy = FileAttributeStrategy.validate;
 
     ///
     FileAttributeStrategy sizeStrategy = FileAttributeStrategy.compute;
@@ -100,10 +100,13 @@ in(input.type == NodeType.mapping)
     {
         // See_Also: https://github.com/dlang/phobos/blob/67d4521c2c53b4e8c4a5213860c49caf9396bde2/std/file.d#L4468
         () @trusted {
-            import std : baseName, dirEntries, rename, SpanMode;
+            import std : baseName, dirEntries, enforce, format, rename, SpanMode;
             foreach(string name; dirEntries(tempDestPath, SpanMode.shallow))
             {
-                assert(buildPath(destPath, name.baseName).exists);
+                enforce(
+                    buildPath(destPath, name.baseName).exists,
+                    format!"`%s` already exists"(buildPath(destPath, name.baseName)),
+                );
                 rename(name, buildPath(destPath, name.baseName));
             }
         }();
@@ -271,7 +274,10 @@ in(config.temporalPath.isDir)
         import std : enforce;
 
         auto checksum = calcChecksum(actualDestPath);
-        enforce(config.checksumStrategy == FileAttributeStrategy.compute || cFile["checksum"] == checksum);
+        if (config.checksumStrategy == FileAttributeStrategy.validate && "checksum" in cFile)
+        {
+            cFile["checksum"] = checksum;
+        }
         ret["checksum"] = checksum;
     }
 
@@ -320,7 +326,7 @@ EOS"(srcURI);
 
     auto downloaded = make!(RedBlackTree!string);
 
-    DownloadConfig con = { temporalPath: dstDirURI.path };
+    DownloadConfig con = { temporalPath: dstDirURI.path, checksumStrategy: FileAttributeStrategy.noCompute, };
     auto staged = downloadFile(src, dstDirURI, wire, con, downloaded);
     auto dstURI = buildPath(dstDirURI, fileName);
     assert(staged.length == 8);
