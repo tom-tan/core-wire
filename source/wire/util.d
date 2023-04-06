@@ -95,7 +95,7 @@ in(path.exists)
 in(path.isFile)
 {
     import std.digest.sha : SHA1;
-    import std : chunks, File, toHexString;
+    import std : chunks, File, format, toHexString, toLower;
 
     SHA1 hash;
     hash.start;
@@ -105,7 +105,8 @@ in(path.isFile)
     {
         hash.put(buf);
     }
-    return toHexString(hash.finish);
+
+    return format!"sha1$%s"(toHexString(hash.finish).toLower);
 }
 
 ///
