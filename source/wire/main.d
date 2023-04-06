@@ -15,7 +15,8 @@ int wireMain(string[] args)
     import wire.cwl : download, upload, DownloadConfig, FileAttributeStrategy;
     import wire.util : absoluteURI, scheme, toJSON;
 
-    string destURI;
+    bool showVersion;
+
     string configFile;
     DownloadConfig con;
 
@@ -23,8 +24,6 @@ int wireMain(string[] args)
 
     auto opts = args.getopt(
         config.caseSensitive,
-        config.required,
-        "dest", "Destination base URI",  (string _, string uri) { destURI = uri.absoluteURI; },
         "randomize", "Make ramdomized subdirectory for each File or Directory", &con.makeRandomDir,
         // "config", "Configuration file", &configFile,
         "keep-checksum", "Keep checksums in the input object", () {
@@ -91,14 +90,20 @@ int wireMain(string[] args)
                 },
             );
         },
+        "version", "Show version information", &showVersion,
         // "custom-core-wire-cmd", "", () {},
     );
 
-    if (opts.helpWanted || args.length != 2)
+    if (showVersion)
+    {
+        write(import("version"));
+        return 0;
+    }
+    else if (opts.helpWanted || args.length != 3)
     {
         immutable baseMessage = format!(q"EOS
             core-wire: A tool/library to make CWL engines connected to remote resources
-            Usage: %s [options] src.yml
+            Usage: %s [options] src.yaml dest-uri
 EOS".outdent[0 .. $ - 1])(args[0].baseName);
 
         defaultGetoptFormatter(
@@ -117,6 +122,7 @@ EOS".outdent[0 .. $ - 1])(args[0].baseName);
     }
 
     auto inpFile = args[1].absolutePath;
+    auto destURI = args[2].absoluteURI;
 
     enforce(inpFile.exists && inpFile.isFile);
     auto loader = Loader.fromFile(inpFile);

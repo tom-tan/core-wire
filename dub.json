@@ -12,5 +12,11 @@
 	"license": "Apache-2.0",
 	"name": "core-wire",
 	"targetPath": "bin",
-	"targetType": "executable"
+	"targetType": "executable",
+	"preBuildCommands": [
+		"./gen-version.sh > resources/version"
+	],
+	"stringImportPaths": [
+		"resources"
+	]
 }

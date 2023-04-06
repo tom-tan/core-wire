@@ -10,7 +10,7 @@ and returns a new input object with downloaded/uploaded URIs.
 
 ## Usage
 ```console
-$ core-wire input.yaml --dest=file://uri/to/the/destination
+$ core-wire input.yaml file://uri/to/the/destination
 ```
 It accepts YAML and JSON files for the input object.
 
@@ -28,7 +28,7 @@ $ cat input.json
         "location": "https://remote/resource/file.txt"
     }
 }
-$ core-wire input.json --dest=file:///current-dir/inp
+$ core-wire input.json file:///current-dir/inp
 {
     "param1": 10,
     "param2": {
@@ -66,7 +66,7 @@ $ cat input.json
         "size": 13
     }
 }
-$ core-wire --config=s3conf.json input.json --dest=s3://bucket/inp/
+$ core-wire --config=s3conf.json input.json s3://bucket/inp/
 {
     "param1": 10,
     "param2": {
@@ -104,7 +104,7 @@ $ cat input.json
         "location": "ssh:///remote-server:/home/user/path-to/file.txt",
     }
 }
-$ core-wire input.json --dest=file:///current-dir/inp --inline-dl-file-cmd=ssh:"scp <src-uri> <dst-path>"
+$ core-wire input.json file:///current-dir/inp --inline-dl-file-cmd=ssh:"scp <src-uri> <dst-path>"
 {
     "param1": 10,
     "param2": {
