@@ -49,7 +49,7 @@ int wireMain(string[] args)
             auto cmd = splitted[2];
             icss.update(
                 scheme,
-                () => InlineCommandSet(cmd, "", ""),
+                () => InlineCommandSet("", cmd, ""),
                 (ref InlineCommandSet ics) {
                     enforce(
                         ics.dlDirCmd.empty,
@@ -65,7 +65,7 @@ int wireMain(string[] args)
             auto cmd = splitted[2];
             icss.update(
                 scheme,
-                () => InlineCommandSet(cmd, "", ""),
+                () => InlineCommandSet("", "", cmd),
                 (ref InlineCommandSet ics) {
                     enforce(
                         ics.ulDirCmd.empty,
