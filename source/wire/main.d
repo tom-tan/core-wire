@@ -37,7 +37,9 @@ int wireMain(string[] args)
         "validate-checksum", "Compute checksums and validate with checksums in the input object", () {
             con.checksumStrategy = FileAttributeStrategy.validate;
         },
-        "inline-dl-file-cmd", q"[format: `scheme:"cmd"`]", (string opt, string val) {
+        "inline-dl-file-cmd",
+        q"[Specify the command to download files for a given scheme (example: `https:"curl -f <src-uri> -o <dst-path>"`)]",
+        (string opt, string val) {
             auto splitted = enforce(val.findSplit(":"), format!"The format of `%s` must be `scheme:cmd`"(opt));
             auto scheme = splitted[0];
             auto cmd = splitted[2];
@@ -53,7 +55,9 @@ int wireMain(string[] args)
                 },
             );
         },
-        "inline-dl-dir-cmd", q"[format: `scheme:"cmd"`]", (string opt, string val) {
+        "inline-dl-dir-cmd",
+        q"[Specify the command to download directories for a given schme (example: `ssh:"scp -r <src-uri> <dst-path>"`)]",
+        (string opt, string val) {
             auto splitted = enforce(val.findSplit(":"), format!"The format of `%s` must be `scheme:cmd`"(opt));
             auto scheme = splitted[0];
             auto cmd = splitted[2];
@@ -69,7 +73,9 @@ int wireMain(string[] args)
                 },
             );
         },
-        "inline-ul-dir-cmd", q"[format: `scheme:"cmd"`]", (string opt, string val) {
+        "inline-ul-dir-cmd",
+        q"[Specify the command to upload directories for a given schme (example: `ssh:"scp -r <src-uri> <dst-path>"`)]",
+        (string opt, string val) {
             auto splitted = enforce(val.findSplit(":"), format!"The format of `%s` must be `scheme:cmd`"(opt));
             auto scheme = splitted[0];
             auto cmd = splitted[2];
