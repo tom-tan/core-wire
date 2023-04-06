@@ -9,6 +9,30 @@ on:
   pull_request: {}
 
 jobs:
+  info:
+    runs-on: ubuntu-latest
+    outputs:
+      has_tag: ${{ steps.get_info.outputs.has_tag }}
+      tag: ${{ steps.get_info.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - id: get_info
+        run: |
+          tag="${GITHUB_REF##*/}"
+          echo "has_tag=$has_tag" >> $GITHUB_OUTPUT
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+        env:
+          has_tag: ${{ startsWith(github.ref, 'refs/tags/') }}
+      - name: Validate version tag
+        if: github.event_name == 'push' && steps.get_info.outputs.has_tag == 'true'
+        run: |
+          if [ $(cat VERSION) != ${{ steps.get_info.outputs.tag }} ]; then
+            echo "::error file=VERSION,line=1,col=1::Version string in VERSION ($(cat VERSION)) does not match the tag string (${{ steps.get_info.outputs.tag }})"
+            exit 1
+          fi
+
   test:
     strategy:
       matrix:
@@ -22,10 +46,54 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: ~/.dub
-          key: ${{ runner.os }}-dub-${{ matrix.dc }}-${{ hashFiles('**/dub.json') }}
+          key: ${{ runner.os }}-dub-${{ hashFiles('**/dub.json') }}
       - uses: dlang-community/setup-dlang@v1
         with:
           compiler: ${{ matrix.dc }}
       - name: Run tests
         run: |
           dub test
+
+  build-linux:
+    needs: [info, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: ldc-latest
+      - uses: actions/cache@v3
+        with:
+          path: ~/.dub
+          key: ${{ runner.os }}-dub-${{ hashFiles('**/dub.json') }}
+      - run: |
+          dub build -b release
+          strip bin/core-wire
+      - uses: actions/upload-artifact@v3
+        with:
+          name: core-wire-linux-${{ runner.arch }}-master
+          path: ${{ github.workspace }}/bin/core-wire
+
+  build-mac:
+    needs: [info, test]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: ldc-latest
+      - uses: actions/cache@v3
+        with:
+          path: ~/.dub
+          key: ${{ runner.os }}-dub-${{ hashFiles('**/dub.json') }}
+      - run: |
+          dub build -b release
+          strip bin/core-wire
+      - uses: actions/upload-artifact@v3
+        with:
+          name: core-wire-macos-${{ runner.arch }}-master
+          path: ${{ github.workspace }}/bin/core-wire
