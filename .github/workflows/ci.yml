@@ -109,14 +109,14 @@ jobs:
           name: core-wire-linux-X64-master
       - run: |
           chmod +x core-wire
-          tar cf ${GITHUB_WORKSPACE}/core-wire-linux-x86_64.tar.gz shaft
+          tar cf ${GITHUB_WORKSPACE}/core-wire-linux-x86_64.tar.gz core-wire
           rm core-wire
       - uses: actions/download-artifact@v3
         with:
           name: core-wire-osx-X64-master
       - run: |
           chmod +x core-wire
-          tar cf ${GITHUB_WORKSPACE}/core-wire-osx-x86_64.tar.gz shaft
+          tar cf ${GITHUB_WORKSPACE}/core-wire-osx-x86_64.tar.gz core-wire
           rm core-wire
       - uses: softprops/action-gh-release@v1
         id: create_release
