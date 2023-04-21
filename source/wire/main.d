@@ -90,6 +90,12 @@ int wireMain(string[] args)
                 },
             );
         },
+        "listing", "Specify the strategy for the `listing` field (`no`, `shallow`, or `deep`)",
+        (string opt, string val) {
+            import std : to;
+            import wire.cwl : LoadListing;
+            con.loadListing = val.to!LoadListing;
+        },
         "version", "Show version information", &showVersion,
         // "custom-core-wire-cmd", "", () {},
     );

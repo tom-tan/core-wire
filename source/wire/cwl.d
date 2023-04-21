@@ -7,7 +7,7 @@ module wire.cwl;
 
 import dyaml;
 
-import std : empty, exists, isDir, make, redBlackTree, RedBlackTree;
+import std : baseName, buildPath, empty, exists, isDir, isFile, make, redBlackTree, RedBlackTree;
 
 import wire : Wire;
 import wire.core : CoreWireConfig;
@@ -104,7 +104,7 @@ in(input.type == NodeType.mapping)
             foreach(string name; dirEntries(tempDestPath, SpanMode.shallow))
             {
                 enforce(
-                    buildPath(destPath, name.baseName).exists,
+                    !buildPath(destPath, name.baseName).exists,
                     format!"`%s` already exists"(buildPath(destPath, name.baseName)),
                 );
                 rename(name, buildPath(destPath, name.baseName));
@@ -382,12 +382,22 @@ in(config.temporalPath.isDir)
 
         auto newConfig = config;
         newConfig.temporalPath = actualDestPath;
+        newConfig.loadListing = config.loadListing == LoadListing.deep ? LoadListing.deep : LoadListing.no;
 
-        auto listingDir = loc;
-        auto lst = listing.sequence.map!(s => downloadClass(s, listingDir, wire, newConfig, downloaded)).array;
         ret["location"] = loc;
         ret["path"] = loc.path;
-        ret["listing"] = lst;
+
+        auto listingDir = loc;
+
+        auto lst = listing.sequence.map!(s => downloadClass(s, listingDir, wire, newConfig, downloaded)).array;
+        if (config.loadListing != LoadListing.no && !lst.empty)
+        {
+            ret["listing"] = lst;
+        }
+        else
+        {
+            ret.removeAt("listing");
+        }
     }
     else
     {
@@ -396,6 +406,17 @@ in(config.temporalPath.isDir)
         auto loc = buildPath(destDirURI, cDir["basename"].as!string);
         ret["location"] = loc;
         ret["path"] = loc.path;
+        if (config.loadListing != LoadListing.no)
+        {
+            auto newConfig = config;
+            newConfig.temporalPath = actualDestPath;
+
+            auto listing = recursiveListing(loc.path, newConfig);
+            if (!listing.empty)
+            {
+                ret["listing"] = listing;
+            }
+        }
     }
 
     downloaded.insert(actualDestPath);
@@ -706,4 +727,85 @@ EOS";
     assert(origFile["listing"][1].length == 2);
     assert(origFile["listing"][1]["class"] == "File");
     assert(origFile["listing"][1]["contents"] == "bar\n");
+}
+
+/// Returns: an array of Directory object
+Node[] recursiveListing(string path, DownloadConfig con) @trusted
+in(con.loadListing != LoadListing.no)
+in(con.temporalPath.exists)
+in(con.temporalPath.isDir)
+{
+    import std : baseName, buildPath, dirEntries, DirEntry, SpanMode;
+
+    auto newConfig = con;
+    if (con.loadListing == LoadListing.shallow)
+    {
+        newConfig.loadListing = LoadListing.no;
+    }
+
+    Node[] ret;
+    foreach(DirEntry p; dirEntries(con.temporalPath, SpanMode.shallow))
+    {
+        auto elem = p.isFile ? buildPath(path, p.name.baseName).toFile(newConfig) : 
+                    p.isDir ? buildPath(path, p.name.baseName).toDirectory(newConfig) :
+                    assert(false, "Unsupported file type");
+        ret ~= elem;
+    }
+    return ret;
+}
+
+///
+auto toFile(string path, DownloadConfig con)
+in(con.temporalPath.exists)
+in(buildPath(con.temporalPath, path.baseName).isFile)
+{
+    import std : baseName, dirName, extension, getSize, stripExtension;
+
+    Node ret;
+    ret.add("class", "File");
+    ret.add("location", "file://"~path);
+    ret.add("path", path);
+    ret.add("basename", path.baseName);
+    ret.add("dirname", path.dirName);
+    ret.add("nameroot", path.baseName.stripExtension);
+    ret.add("nameext", path.baseName.extension);
+
+    auto actualPath = buildPath(con.temporalPath, path.baseName);
+
+    if (con.checksumStrategy != FileAttributeStrategy.noCompute)
+    {
+        ret.add("checksum", calcChecksum(actualPath));
+    }
+    if (con.sizeStrategy != FileAttributeStrategy.noCompute)
+    {
+        ret.add("size", getSize(actualPath));
+    }
+    return ret;
+}
+
+auto toDirectory(string path, DownloadConfig con)
+in(con.temporalPath.exists)
+in(buildPath(con.temporalPath, path.baseName).isDir)
+{
+    import std : baseName;
+
+    Node ret;
+    ret.add("class", "Directory");
+    ret.add("location", "file://"~path);
+    ret.add("path", path);
+    ret.add("basename", path.baseName);
+
+    if (con.loadListing == LoadListing.no)
+    {
+        return ret;
+    }
+
+    auto newConfig = con;
+    newConfig.temporalPath = buildPath(con.temporalPath, path.baseName);
+    auto listing = recursiveListing(path, newConfig);
+    if (!listing.empty)
+    {
+        ret.add("listing", listing);
+    }
+    return ret;
 }
