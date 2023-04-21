@@ -134,3 +134,51 @@ JSONValue toJSON(Node node) @safe
     default: assert(false, format!"Invalid node type: %s"(node.type));
     }
 }
+
+///
+auto moveAll(string src, string dst) @trusted
+{
+    import std : enforce, FileException;
+
+    enforce(!dst.exists);
+    try
+    {
+        import std : rename;
+        // Note: `rename` only works when `src` and `dst` are in the same mount point.
+        rename(src, dst);
+    }
+    catch(FileException _)
+    {
+        import std : isDir;
+
+        // fallback: copy each file and directory
+        if (src.isFile)
+        {
+            import std : copy;
+            copy(src, dst);
+        }
+        else if (src.isDir)
+        {
+            import std : dirEntries, DirEntry, SpanMode;
+
+            foreach(DirEntry e; dirEntries(src, SpanMode.depth))
+            {
+                import std : buildPath, mkdirRecurse, relativePath;
+
+                auto srcRelEntry = e.name.relativePath(src);
+                auto dstEntry = buildPath(dst, srcRelEntry);
+
+                if (e.isFile)
+                {
+                    import std : copy, dirName;
+                    mkdirRecurse(dstEntry.dirName);
+                    copy(e.name, dstEntry);
+                }
+                else if (e.isDir)
+                {
+                    mkdirRecurse(dstEntry);
+                }
+            }
+        }
+    }
+}

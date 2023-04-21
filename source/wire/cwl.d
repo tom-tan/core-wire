@@ -107,15 +107,13 @@ in(input.type == NodeType.mapping)
                     !buildPath(destPath, name.baseName).exists,
                     format!"`%s` already exists"(buildPath(destPath, name.baseName)),
                 );
-                rename(name, buildPath(destPath, name.baseName));
+                moveAll(name, buildPath(destPath, name.baseName));
             }
         }();
     }
     else if (!downloaded.empty)
     {
-        import std : rename, execute;
-        //rename(tempDestPath, destPath);
-        execute(["mv", tempDestPath, destPath]);
+        moveAll(tempDestPath, destPath);
     }
     return ret; 
 }
