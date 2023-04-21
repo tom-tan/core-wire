@@ -90,7 +90,7 @@ int wireMain(string[] args)
                 },
             );
         },
-        "listing", "Specify the strategy for the `listing` field (`no`, `shallow`, or `deep`)",
+        "listing", "Specify the strategy for the `listing` field (default: `no`, possible values: `no`, `shallow`, and `deep`)",
         (string opt, string val) {
             import std : to;
             import wire.cwl : LoadListing;
