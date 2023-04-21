@@ -123,73 +123,68 @@ Node downloadImpl(Node input, string destURI, Wire wire, DownloadConfig con, Red
 in(destURI.scheme == "file")
 in(con.temporalPath.exists)
 in(con.temporalPath.isDir)
-in(input.type == NodeType.mapping)
 {
     import std : buildPath, mkdir, randomUUID;
 
-    Node ret;
-    foreach(string k, Node v; input)
+    switch(input.type)
     {
-        import std : canFind;
-
-        Node val;
-        if (k.canFind(":"))
+    case NodeType.null_:
+        return Node(YAMLNull());
+    case NodeType.boolean, NodeType.integer, NodeType.decimal, NodeType.string:
+        return input;
+    case NodeType.sequence:
+        import std : array, map;
+        return Node(
+            input.sequence.map!(i => downloadImpl(i, destURI, wire, con, downloaded)).array
+        );
+    case NodeType.mapping:
+        if ("class" in input)
         {
-            // leave extension fields as is
-            val = v;
+            string newDestURI;
+            DownloadConfig newConfig = con;
+            if (con.makeRandomDir)
+            {
+                auto baseName = randomUUID.toString;
+                newDestURI = buildPath(destURI, baseName);
+                newConfig.temporalPath = buildPath(con.temporalPath, baseName);
+                mkdir(newConfig.temporalPath);
+            }
+            else
+            {
+                newDestURI = destURI;
+            }
+            return downloadClass(input, newDestURI, wire, newConfig, downloaded);
         }
         else
         {
-            switch(v.type)
+            Node ret;
+            foreach(string k, Node v; input)
             {
-            case NodeType.null_:
-                val = Node(YAMLNull());
-                break;
-            case NodeType.boolean, NodeType.integer, NodeType.decimal, NodeType.string:
-                val = v;
-                break;
-            case NodeType.sequence:
-                import std : array, map;
-                val = Node(
-                    v.sequence.map!(i => downloadImpl(i, destURI, wire, con, downloaded)).array
-                );
-                break;
-            case NodeType.mapping:
-                if ("class" in v)
+                import std : canFind;
+
+                Node val;
+                if (k.canFind(":"))
                 {
-                    string newDestURI;
-                    DownloadConfig newConfig = con;
-                    if (con.makeRandomDir)
-                    {
-                        auto baseName = randomUUID.toString;
-                        newDestURI = buildPath(destURI, baseName);
-                        newConfig.temporalPath = buildPath(con.temporalPath, baseName);
-                        mkdir(newConfig.temporalPath);
-                    }
-                    else
-                    {
-                        newDestURI = destURI;
-                    }
-                    val = downloadClass(v, newDestURI, wire, newConfig, downloaded);
+                    // leave extension fields as is
+                    val = v;
                 }
                 else
                 {
                     val = downloadImpl(v, destURI, wire, con, downloaded);
                 }
-                break;
-            default:
-                import std : format;
-                import wire.exception : InvalidInput;
-                throw new InvalidInput(format!"Invalid node type: `%s`"(v.type));
-            }
-        }
 
-        if (val.type != NodeType.null_)
-        {
-            ret.add(k, val);
+                if (val.type != NodeType.null_)
+                {
+                    ret.add(k, val);
+                }
+            }
+            return ret;
         }
+    default:
+        import std : format;
+        import wire.exception : InvalidInput;
+        throw new InvalidInput(format!"Invalid node type: `%s`"(input.type));
     }
-    return ret;
 }
 
 ///

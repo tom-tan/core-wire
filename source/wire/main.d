@@ -127,13 +127,25 @@ EOS".outdent[0 .. $ - 1])(args[0].baseName);
         defaultWire.addCoreWire(sch, new InlineCoreWire(sch, ics), ics.type);
     }
 
-    auto inpFile = args[1].absolutePath;
+    auto inpURI = args[1].absoluteURI;
     auto destURI = args[2].absoluteURI;
 
-    enforce(inpFile.exists && inpFile.isFile);
-    auto loader = Loader.fromFile(inpFile);
-    loader.name = "file://"~inpFile;
+    string inpPath;
+    if (inpURI.scheme == "file")
+    {
+        import wire.util : path;
 
+        enforce(inpURI.path.exists && inpURI.path.isFile);
+        inpPath = inpURI.path;
+    }
+    else
+    {
+        inpPath = buildPath(tempDir, randomUUID.toString);
+        defaultWire.downloadFile(inpURI, "file://"~inpPath);
+    }
+
+    auto loader = Loader.fromFile(inpPath);
+    loader.name = inpURI;
     auto node = loader.load;
 
     auto staged = destURI.scheme == "file"
