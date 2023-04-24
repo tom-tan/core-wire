@@ -55,7 +55,7 @@ int wireMain(string[] args)
             );
         },
         "inline-dl-dir-cmd",
-        q"[Specify the command to download directories for a given schme (example: `ssh:"scp -r <src-uri> <dst-path>"`)]",
+        q"[Specify the command to download directories for a given scheme (example: `ssh:"scp -r <src-uri> <dst-path>"`)]",
         (string opt, string val) {
             auto splitted = enforce(val.findSplit(":"), format!"The format of `%s` must be `scheme:cmd`"(opt));
             auto scheme = splitted[0];
