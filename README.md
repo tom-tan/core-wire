@@ -11,7 +11,7 @@ and returns a new input object with downloaded/uploaded URIs.
 
 ## Usage
 ```console
-$ core-wire input.yaml file://uri/to/the/destination
+$ core-wire input.yaml file:///uri/to/the/destination
 ```
 It accepts YAML and JSON files for the input object.
 
