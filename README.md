@@ -1,6 +1,7 @@
 # core-wire: A tool/library to make CWL engines connected to remote resources
-[![CI](https://github.com/tom-tan/core-wire/actions/workflows/ci.yml/badge.svg)](https://github.com/tom-tan/core-wire/actions/workflows/ci.yml)
+[![release](https://badgen.net/github/release/tom-tan/core-wire)](https://github.com/tom-tan/core-wire/releases/latest)
 [![license](https://badgen.net/github/license/tom-tan/core-wire)](https://github.com/tom-tan/core-wire/blob/main/LICENSE)
+[![CI](https://github.com/tom-tan/core-wire/actions/workflows/ci.yml/badge.svg)](https://github.com/tom-tan/core-wire/actions/workflows/ci.yml)
 
 The [CWL specification](https://www.commonwl.org/v1.2/CommandLineTool.html#File) requires the workflow engines to support the URIs with the `file` scheme but supporting other schemes such as `https`, `ftp`, and `s3` is optional.
 Therefore, using such optional schemes in the input objects prevents portability between workflow engines.
