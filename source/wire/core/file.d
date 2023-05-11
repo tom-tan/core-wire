@@ -27,7 +27,8 @@ class FileCoreWire : CoreWire
 
         auto srcPath = src.path;
         auto dstPath = dst.path;
-        if (config.allowSymLink)
+
+        if (config.useSymLink)
         {
             import std.file : symlink;
             symlink(srcPath, dstPath);
@@ -46,7 +47,7 @@ class FileCoreWire : CoreWire
 
         auto srcPath = src.path;
         auto dstPath = dst.path;
-        if (config.allowSymLink)
+        if (config.useSymLink)
         {
             import std.file : symlink;
             symlink(srcPath, dstPath);
@@ -116,27 +117,28 @@ class FileCoreWire : CoreWire
         return CoreWireType.both;
     }
 
+    ///
+    FileCoreWireConfig config;
+
 protected:
     override string[] schemes() const nothrow pure @safe
     {
         return ["file"];
     }
-
-    FileCoreWireConfig config;
 }
 
 class FileCoreWireConfig : CoreWireConfig
 {
-    this(bool allowSymLink) @nogc nothrow pure @safe
+    this(bool useSymLink) @nogc nothrow pure @safe
     {
-        this.allowSymLink = allowSymLink;
+        this.useSymLink = useSymLink;
     }
 
     ///
-    bool allowSymLink;
+    bool useSymLink;
 }
 
-/// Download file with `allowSymlink = false`
+/// Download file with `useSymlink = false`
 @safe unittest
 {
     import std : buildPath, exists, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir;
@@ -168,7 +170,7 @@ class FileCoreWireConfig : CoreWireConfig
     assert(dstURI.path.readText == contents);
 }
 
-/// Download file with `allowSymlink = true`
+/// Download file with `useSymlink = true`
 @safe unittest
 {
     import std : buildPath, exists, isFile, isSymlink, mkdir, randomUUID, readLink, readText, rmdirRecurse, tempDir;
@@ -201,7 +203,7 @@ class FileCoreWireConfig : CoreWireConfig
     assert(dstURI.path.readLink.readText == contents);
 }
 
-/// Download directory with `allowSymlink = false`
+/// Download directory with `useSymlink = false`
 @safe unittest
 {
     import std : buildPath, exists, isDir, isFile, mkdir, randomUUID, readText, rmdirRecurse, tempDir;

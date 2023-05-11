@@ -11,6 +11,8 @@ int wireMain(string[] args)
     import dyaml : Loader;
     import std;
     import wire : defaultWire;
+    import wire.core : CoreWireType;
+    import wire.core.file : FileCoreWire, FileCoreWireConfig;
     import wire.core.inline : InlineCommandSet;
     import wire.cwl : download, upload, DownloadConfig, FileAttributeStrategy;
     import wire.util : absoluteURI, scheme, toJSON;
@@ -20,6 +22,7 @@ int wireMain(string[] args)
     string configFile;
     DownloadConfig con;
 
+    auto fileConfig = new FileCoreWireConfig(false);
     InlineCommandSet[string] icss;
 
     auto opts = args.getopt(
@@ -97,6 +100,9 @@ int wireMain(string[] args)
             con.loadListing = val.to!LoadListing;
         },
         "version", "Show version information", &showVersion,
+        "file-use-symlink", "Use symlink instead of copying (only vald for `file` scheme)", () {
+            fileConfig.useSymLink = true;
+        },
         // "custom-core-wire-cmd", "", () {},
     );
 
@@ -119,6 +125,7 @@ EOS".outdent[0 .. $ - 1])(args[0].baseName);
         return 0;
     }
 
+    defaultWire.addCoreWire("file", new FileCoreWire(fileConfig), CoreWireType.down);
     // set up inlined core wires
     foreach(sch, ics; icss)
     {
