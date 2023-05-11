@@ -1,16 +1,26 @@
 {
-  "image": "ghcr.io/tom-tan/ldc:latest",
-  "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
-  "extensions": ["webfreak.dlang-bundle"],
-  "settings": {
-    "d.dmdPath": "dmd",
-    "d.stdlibPath": [
-      // for dmd
-      "/dlang/dc/src/druntime/import",
-      "/dlang/dc/src/phobos",
-      // for ldc and gdc
-      "/dlang/dc/import"
-    ]
+  "image": "ghcr.io/tom-tan/ldc:1.32.1",
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "webfreak.dlang-bundle"
+      ],
+      "settings": {
+        "d.dmdPath": "dmd",
+        "d.stdlibPath": [
+          // for dmd
+          "/dlang/dc/src/druntime/import",
+          "/dlang/dc/src/phobos",
+          // for ldc and gdc
+          "/dlang/dc/import"
+        ]
+      }
+    }
   },
   "postStartCommand": "git config --add safe.directory ${containerWorkspaceFolder}",
   "remoteUser": "vscode"
