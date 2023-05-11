@@ -136,10 +136,10 @@ JSONValue toJSON(Node node) @safe
 }
 
 ///
-auto moveAll(string src, string dst) @trusted
+void moveAll(string src, string dst) @trusted
 {
     import std : enforce, FileException;
-
+    
     enforce(!dst.exists);
     try
     {
@@ -149,10 +149,18 @@ auto moveAll(string src, string dst) @trusted
     }
     catch(FileException _)
     {
-        import std : isDir;
+        import std : isDir, isSymlink, rmdirRecurse;
 
         // fallback: copy each file and directory
-        if (src.isFile)
+        scope(success) rmdirRecurse(src);
+
+        if (src.isSymlink)
+        {
+            import std : readLink, symlink;
+            auto linkedSrc = src.readLink;
+            symlink(linkedSrc, dst);
+        }
+        else if (src.isFile)
         {
             import std : copy;
             copy(src, dst);
@@ -161,14 +169,21 @@ auto moveAll(string src, string dst) @trusted
         {
             import std : dirEntries, DirEntry, SpanMode;
 
-            foreach(DirEntry e; dirEntries(src, SpanMode.depth))
+            foreach(DirEntry e; dirEntries(src, SpanMode.shallow))
             {
                 import std : buildPath, mkdirRecurse, relativePath;
 
                 auto srcRelEntry = e.name.relativePath(src);
                 auto dstEntry = buildPath(dst, srcRelEntry);
 
-                if (e.isFile)
+                if (e.isSymlink)
+                {
+                    import std : dirName, readLink, symlink;
+                    auto linkedSrc = e.name.readLink;
+                    mkdirRecurse(dstEntry.dirName);
+                    symlink(linkedSrc, dstEntry);
+                }
+                else if (e.isFile)
                 {
                     import std : copy, dirName;
                     mkdirRecurse(dstEntry.dirName);
@@ -176,7 +191,7 @@ auto moveAll(string src, string dst) @trusted
                 }
                 else if (e.isDir)
                 {
-                    mkdirRecurse(dstEntry);
+                    moveAll(e.name, dstEntry);
                 }
             }
         }
